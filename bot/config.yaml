@@ -1,0 +1,14 @@
+appName: SpotSurveyBot
+
+spotify:
+    url:
+        loginURL: 'https://accounts.spotify.com/authorize?'
+        tokenURL: 'https://accounts.spotify.com/api/token'
+        testURL: 'https://api.spotify.com/v1/me'
+        redirectURL: 'https://spot-survey-server3.loca.lt/callback' # ! Needs to be registered on Spotify API Dashboard!
+
+    acessScope: 'user-read-private user-read-email'
+
+telegram:
+    webhookURL: 'https://spot-survey-bot4.loca.lt/'
+
