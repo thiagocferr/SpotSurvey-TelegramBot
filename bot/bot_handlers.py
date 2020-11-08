@@ -8,11 +8,14 @@ import string, secrets
 import requests
 import os
 import yaml
+import logging
 
 from urllib.parse import urljoin, urlencode
 from redis import Redis, RedisError
 
 from redis_operations import RedisAcess # ! Local module
+
+LOGGER = logging.getLogger(__name__)
 
 class BotHandlerManager:
 

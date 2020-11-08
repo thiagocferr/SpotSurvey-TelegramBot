@@ -2,9 +2,11 @@ import requests
 import base64
 import yaml
 import os
+import logging
 
 from redis import Redis, RedisError
 
+LOGGER = logging.getLogger(__name__)
 
 """ Class that holds all the needed Redis connections and functions related to Spotify Tokens
 (like getting and refreshing acess keys or getting Spotify API tokens)

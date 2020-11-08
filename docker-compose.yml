@@ -1,37 +1,39 @@
 version: '3'
 services:
-    webserver:
-        build: ./webserver
-        ports:
-            - "5000:5000"
-        volumes:
-            - ./webserver:/code/webserver
-        environment:
-            FLASK_ENV: development
-        env_file:
-            - .env
+    #webserver:
+    #    build: ./webserver
+    #    ports:
+    #        - "5000:5000"
+    #    volumes:
+    #        - ./webserver:/code/webserver
+    #    environment:
+    #        FLASK_ENV: development
+    #    env_file:
+    #        - .env
+
     bot:
         build: ./bot
+        container_name: 'bot'
         ports:
-            - "80:5001"
+            - "5001:5001"
         volumes:
             - ./bot:/code/bot
         env_file:
             - .env
 
-    redis:
-        image: "redis:alpine"
+    #redis:
+    #    image: "redis:alpine"
 
-    localtunnel_web:
-        image: efrecon/localtunnel
-        links:
-          - webserver
-        command:
-          --local-host webserver --port 5000 --subdomain spot-survey-server2
-
-    #localtunnel_bot:
+    #localtunnel_web:
     #    image: efrecon/localtunnel
     #    links:
-    #      - bot
+    #      - webserver
     #    command:
-    #      --local-host bot --port 5001 --subdomain spot-survey-bot3
+    #      --local-host webserver --port 5000 --subdomain spot-survey-server3
+
+    localtunnel_bot:
+        image: efrecon/localtunnel
+        links:
+          - bot
+        command:
+          --local-host bot --port 5001 --subdomain spot-survey-bot4
