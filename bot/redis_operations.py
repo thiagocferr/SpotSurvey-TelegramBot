@@ -8,9 +8,27 @@ from redis import Redis, RedisError
 
 LOGGER = logging.getLogger(__name__)
 
-""" Class that holds all the needed Redis connections and functions related to Spotify Tokens
-(like getting and refreshing acess keys or getting Spotify API tokens)
+""" Exception Class that holds all the needed Redis connections and functions related to
+Spotify Tokens (like getting and refreshing acess keys or getting Spotify API tokens)
 """
+class AlreadySignedInException(Exception):
+    def __init__(self, chat_id):
+
+        self.id = chat_id
+        self.message = f'Chat id {self.id} is already registered'
+
+        super().__init__(self.message)
+
+    def __str__(self):
+        return self.message
+
+"""
+Exception class used to represent some kind of internal error during processo of obtaining
+user tokens from the Spotify API
+"""
+class TokenRequestException(Exception):
+    pass
+
 class RedisAcess:
 
     def __init__(self):
@@ -19,7 +37,7 @@ class RedisAcess:
             host = 'localhost',
             port = 6379,
             #password=,
-            db = 0 # USed for memcache the acess token into telegram bot
+            db = 0 # Used for memcache the acess token into telegram bot
         )
 
         self.memcache = Redis(
@@ -36,27 +54,9 @@ class RedisAcess:
         self.spotify_redirect_url = yaml.safe_load(open('config.yaml'))['spotify']['url']['redirectURL']
 
 
-    """
-    Register Spotify tokens on redis DB be getting verification token from memcache
+    def __user_token_request_process__(self, body_form, is_register):
 
-    Returns a dictionary with keys 'sucess' (boolean) and, if false, 'reason' (string) with the error message
-    """
-    def register_spotify_tokens(self, hash, chat_id):
-
-        # Get real token from memcache
-        spot_code = self.memcache.get(hash)
-        self.memcache.delete(hash)
-
-        # Check if user already has been registered on DB
-        if self.redis.get('user' + ':' + str(chat_id) + ':' + 'refresh_token') is not None:
-            return {'sucess': False, 'reason': 'User is already registered'}
-
-        # Sending another request, as specified by the Spotify API
-        auth_form = {
-            "code": spot_code,
-            "redirect_uri": self.spotify_redirect_url,
-            "grant_type": "authorization_code",
-        }
+        return_params = {}
 
         header = {
             'Authorization': ('Basic ' +
@@ -65,27 +65,77 @@ class RedisAcess:
                           os.environ.get('SPOTIFY_CLIENT_SECRECT'), 'utf-8')).decode('utf-8'))
         }
 
-        auth_request = requests.post(self.spotify_token_url, data=auth_form, headers=header)
+        request = requests.post(self.spotify_token_url, data=body_form, headers=header)
 
         try:
-            auth_request.raise_for_status()
-            response = auth_request.json() # Dictionary with response
+            request.raise_for_status()
+            response = request.json() # Dictionary with response
 
             # Getting necessary fields
-            acess_token = response['access_token'] # ACESS TOKEN
-            refresh_token = response['refresh_token'] # REFRESH TOKEN
-            acess_token_expiration_time = response.get('expires_in', 3600) # EXPIRATION TIME. IF NOT REICIVED, PUT FOR 1 HOUR
+            return_params['acess_token'] = response['access_token'] # ACESS TOKEN
+            return_params['expires_in'] = response.get('expires_in', 3600) # EXPIRATION TIME.
 
-        except requests.HTTPError or ValueError or KeyError:
-            return {'sucess': False, 'reason': 'Failed to obtain Spotify API tokens'}
+            if is_register:
+                return_params['refresh_token'] = response['refresh_token'] # REFRESH TOKEN
 
-        self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'acess_token', value = acess_token, ex = acess_token_expiration_time)
-        self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'refresh_token', value = refresh_token)
+        except requests.HTTPError:
+            message = 'Could not get authentication response from Spotify'
+            LOGGER.exception(message)
+            raise TokenRequestException(message)
+        except ValueError:
+            message = 'Could not decode response while getting Spotify tokens'
+            LOGGER.exception(message)
+            raise TokenRequestException(message)
+        except KeyError:
+            message = 'Not all necessary Spotify tokens where found'
+            LOGGER.exception(message)
+            raise TokenRequestException(message)
 
-        return {'sucess': True}
+        return return_params
 
     """
-    Get acess token (as a string). If it's already invalid, make request to get new one
+    Register Spotify tokens on redis DB be getting verification token from memcache
+
+    Raises ValueError if hash parameter is not found on memcache DB, AlreadySignedInException
+    if chat_id parameter is already registered and TokenRequestException for internal errors
+    while requesting Spotify API user tokens
+    """
+    def register_spotify_tokens(self, hash, chat_id):
+
+        # Get real token from memcache
+        spot_code = self.memcache.get(hash)
+        if not spot_code:
+            LOGGER.error(f'Hash {hash} was not found on memcache database')
+            raise ValueError(f'Invalid hash: Hash {hash} not found')
+
+        self.memcache.delete(hash)
+
+        # Check if user already has been registered on DB
+        if self.redis.get('user' + ':' + str(chat_id) + ':' + 'refresh_token') is not None:
+            raise AlreadySignedInException(chat_id)
+
+        # Sending another request, as specified by the Spotify API
+        auth_form = {
+            "code": spot_code,
+            "redirect_uri": self.spotify_redirect_url,
+            "grant_type": "authorization_code",
+        }
+
+        try:
+            response_params = self.__user_token_request_process__(auth_form, is_register=True)
+        except:
+            raise
+
+        acess_token = response_params['acess_token']
+        refresh_token = response_params['refresh_token']
+        expires_in = response_params['expires_in']
+
+        self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'acess_token', value = acess_token, ex = expires_in)
+        self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'refresh_token', value = refresh_token)
+
+    """
+    Get acess token (as a string). If it's already invalid, make request to get new one.
+    If user is not logged in, returns None
     """
     def get_spotify_acess_token(self, chat_id):
 
@@ -99,23 +149,15 @@ class RedisAcess:
                     "refresh_token": refresh_token.decode('utf-8')
                 }
 
-                header = {
-                    'Authorization': ('Basic ' +
-                        base64.b64encode(
-                            bytes(os.environ.get('SPOTIFY_CLIENT_ID') + ':' +
-                                  os.environ.get('SPOTIFY_CLIENT_SECRECT'), 'utf-8')).decode('utf-8'))
-                }
+                try:
+                    response_params = self.__user_token_request_process__(refresh_form, is_register=False)
+                except:
+                    raise
 
-                auth_request = requests.post(self.spotify_token_url, data = refresh_form, headers = header)
+                acess_token = response_params['acess_token']
+                expires_in = response_params['expires_in']
 
-                auth_request.raise_for_status()
-                response = auth_request.json() # Dictionary with response
-
-                # Getting necessary fields
-                acess_token = response['access_token'] # ACESS TOKEN
-                acess_token_expiration_time = response.get('expires_in', 3600) # EXPIRATION TIME. IF NOT REICIVED, PUT FOR 1 HOUR
-
-                self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'acess_token', value = acess_token, ex = acess_token_expiration_time)
+                self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'acess_token', value = acess_token, ex = expires_in)
         else:
             # If entered both if statments, acess_token is a string. Else, it's bytes (from the get operation on the Redis DB)
             acess_token = acess_token.decode('utf-8')

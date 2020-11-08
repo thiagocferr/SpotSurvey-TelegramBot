@@ -13,7 +13,7 @@ import logging
 from urllib.parse import urljoin, urlencode
 from redis import Redis, RedisError
 
-from redis_operations import RedisAcess # ! Local module
+from redis_operations import RedisAcess, AlreadySignedInException, TokenRequestException # ! Local module
 
 LOGGER = logging.getLogger(__name__)
 
@@ -23,10 +23,7 @@ class BotHandlerManager:
         self.redis_instance = RedisAcess()
 
         with open('config.yaml', 'r') as f:
-            try:
-                config = yaml.safe_load(f)
-            except yaml.YAMLError as exc:
-                raise
+            config = yaml.safe_load(f)
 
         self.spotify_url_list = config['spotify']['url'] # List of all Spotify API endpoints (URLs) used
         self.spotify_permissions = config['spotify']['acessScope'] # Acess permission requered from user
@@ -47,16 +44,17 @@ class BotHandlerManager:
         if len(context.args) == 0:
             context.bot.send_message(chat_id = update.effective_chat.id, text = "I'm a bot, please talk to me!")
         else:
-            text_message = ""
             try:
-                internal_response = self.redis_instance.register_spotify_tokens(context.args[0], update.message.chat_id)
-            except RedisError as e:
-                text_message = "Erro: Internal database error"
-
-            if not internal_response.get('sucess'):
-                text_message = "Error: " + internal_response.get('reason')
-            else:
+                self.redis_instance.register_spotify_tokens(context.args[0], update.message.chat_id)
                 text_message = "Login was sucessful!"
+            except AlreadySignedInException:
+                text_message = "Couldn't complete registration process: User already logged in"
+            except RedisError:
+                text_message = "Error: Internal database error!"
+            except ValueError:
+                text_message = "Recieved hash from start command doesn't exist"
+            except TokenRequestException:
+                text_message = "Error: Could not retrieve user tokens from Spotify API"
 
             context.bot.send_message(chat_id = update.effective_chat.id, text = text_message)
 

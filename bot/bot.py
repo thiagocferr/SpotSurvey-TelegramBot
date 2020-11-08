@@ -16,10 +16,10 @@ def check_config_vars():
     message = ''
     status = 0
 
-    config_file = yaml.safe_load(open('config.yaml'))
-
-
     try:
+        with open('config.yaml', 'r') as f:
+            config_file = yaml.safe_load(f)
+
         if not config_file['telegram']['webhookURL']:
             raise ValueError('No Telegram Webhook URL found on config file!')
 
@@ -34,6 +34,8 @@ def check_config_vars():
 
         if not os.environ.get('SPOTIFY_CLIENT_SECRECT'):
             raise ValueError('No Spotify Client Secret found as an environment variable!')
+    except yaml.YAMLError as yml:
+        message = 'Error parsing configuration file!'
     except KeyError as k:
         message = 'Critical configuration field not found!'
     except ValueError as v:
