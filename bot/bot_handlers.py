@@ -11,101 +11,56 @@ import yaml
 import logging
 
 from urllib.parse import urljoin, urlencode
-from redis import Redis, RedisError
+from redis import RedisError
 
-from redis_operations import RedisAcess, AlreadySignedInException, TokenRequestException # ! Local module
+from redis_operations import RedisAcess, AlreadyLoggedInException, NotLoggedInException, TokenRequestException # ! Local module
+from spotify_endpoint_acess import SpotifyEndpointAcess # ! Local module
 
 LOGGER = logging.getLogger(__name__)
 
 class BotHandlerManager:
 
     def __init__(self):
+
         self.redis_instance = RedisAcess()
 
-        with open('config.yaml', 'r') as f:
-            config = yaml.safe_load(f)
+        # As we have no intension of changing object members (only acessing them), we are sharing Redis DB connection
+        self.spotify_endpoint_acess = SpotifyEndpointAcess(self.redis_instance)
 
-        self.spotify_url_list = config['spotify']['url'] # List of all Spotify API endpoints (URLs) used
-        self.spotify_permissions = config['spotify']['acessScope'] # Acess permission requered from user
-
-
-    """
-    Generates random string, as mentioned here:
-    https://stackoverflow.com/questions/2257441/random-string-generation-with-upper-case-letters-and-digits/23728630#23728630
-    """
-    @staticmethod
-    def __code_generator__(size, chars=string.ascii_uppercase + string.digits):
-        return ''.join(secrets.choice(chars) for _ in range(size))
-
-    """
-    '/start' command
-    """
+    """ '/start' command """
     def start(self, update, context):
         if len(context.args) == 0:
             context.bot.send_message(chat_id = update.effective_chat.id, text = "I'm a bot, please talk to me!")
         else:
+            error_message = ""
             try:
-                self.redis_instance.register_spotify_tokens(context.args[0], update.message.chat_id)
-                text_message = "Login was sucessful!"
-            except AlreadySignedInException:
-                text_message = "Couldn't complete registration process: User already logged in"
+                self.spotify_endpoint_acess.register(update.message.chat_id, context.args[0])
+                context.bot.send_message(chat_id = update.effective_chat.id, text = "Login was sucessful!")
+
+            except AlreadyLoggedInException:
+                error_message = "Couldn't complete registration process: User already logged in"
             except RedisError:
-                text_message = "Error: Internal database error!"
+                error_message = "Error: Internal database error during authentication!"
             except ValueError:
-                text_message = "Recieved hash from start command doesn't exist"
+                error_message = "Error: Invalid start command parameter"
             except TokenRequestException:
-                text_message = "Error: Could not retrieve user tokens from Spotify API"
+                error_message = "Error: Could not retrieve user tokens from Spotify API during authentication"
 
-            context.bot.send_message(chat_id = update.effective_chat.id, text = text_message)
+            if error_message:
+                context.bot.send_message(chat_id = update.effective_chat.id, text = error_message)
 
-    """
-    Echoes what user says (not a command)
-    # ! REMOVE LATER
-    """
+    """ Echoes what user says (not a command) """
     def echo(self, update, context):
         context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text)
 
-    """
-    '/login' command. Makes user authentication from Spotify
-    """
+    """'/login' command. Makes user authentication from Spotify"""
     def login(self, update, context):
 
-        scope = self.spotify_permissions
-
-        state = self.__code_generator__(16)
-        query = {
-            "client_id": os.environ.get('SPOTIFY_CLIENT_ID'),
-            "response_type": "code",
-            "redirect_uri": self.spotify_url_list['redirectURL'],
-            "state": state,
-            "scope": scope
-        }
-
-        # Construct URL text
-        encoded_query = urlencode(query)
-        login_url = self.spotify_url_list['loginURL'] + encoded_query
-
-        # Send URL to user chat
+        login_url = self.spotify_endpoint_acess.authorization_link()
         context.bot.send_message(chat_id=update.effective_chat.id, text=login_url)
 
-    """
-    A test function ('/test'). Gets the name of the Spotify account user.
-    # ! REMOVE LATER
-    """
+    """ A test function ('/test'). Gets the name of the Spotify account user """
     def test_api(self, update, context):
 
-        try:
-            user_token = self.redis_instance.get_spotify_acess_token(update.effective_chat.id)
-        except: # Failed to obtain acess key
-            context.bot.send_message(chat_id = update.effective_chat.id, text = "Error: Couldn't acess Spotify API")
-            return
-
-        if user_token is None:
-            context.bot.send_message(chat_id = update.effective_chat.id, text = "Error: Not logged in. Execute command /login fro the login process")
-            return
-
-        header = {'Authorization': 'Bearer ' + user_token}
-
-        r = requests.get(self.spotify_url_list['testURL'], headers=header)
-        request = r.json()
-        context.bot.send_message(chat_id = update.effective_chat.id, text = request.get('display_name'))
+        info = self.spotify_endpoint_acess.test(update.effective_chat.id)
+        context.bot.send_message(chat_id = update.effective_chat.id, text = info.get('display_name'))

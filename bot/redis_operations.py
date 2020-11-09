@@ -9,23 +9,32 @@ from redis import Redis, RedisError
 LOGGER = logging.getLogger(__name__)
 
 """ Exception Class that holds all the needed Redis connections and functions related to
-Spotify Tokens (like getting and refreshing acess keys or getting Spotify API tokens)
-"""
-class AlreadySignedInException(Exception):
+Spotify Tokens (like getting and refreshing acess keys or getting Spotify API tokens) """
+class AlreadyLoggedInException(Exception):
     def __init__(self, chat_id):
 
         self.id = chat_id
-        self.message = f'Chat id {self.id} is already registered'
+        self.message = f'User with id {self.id} is already registered'
 
         super().__init__(self.message)
 
     def __str__(self):
         return self.message
 
-"""
-Exception class used to represent some kind of internal error during processo of obtaining
-user tokens from the Spotify API
-"""
+""" Exception class for using with opeartions that require the user to be logged in with a Spotify Account """
+class NotLoggedInException(Exception):
+    def __init__(self, chat_id):
+
+        self.id = chat_id
+        self.message = f'User with id {self.id} is not registered!'
+
+        super().__init__(self.message)
+
+    def __str__(self):
+        return self.message
+
+""" Exception class used to represent some kind of internal error during processo of obtaining
+user tokens from the Spotify API """
 class TokenRequestException(Exception):
     pass
 
@@ -52,7 +61,6 @@ class RedisAcess:
 
         # Redirect URL (needed in order to get acess to both acess and refresh token)
         self.spotify_redirect_url = yaml.safe_load(open('config.yaml'))['spotify']['url']['redirectURL']
-
 
     def __user_token_request_process__(self, body_form, is_register):
 
@@ -93,14 +101,12 @@ class RedisAcess:
 
         return return_params
 
-    """
-    Register Spotify tokens on redis DB be getting verification token from memcache
+    """Register Spotify tokens on redis DB be getting verification token from memcache
 
-    Raises ValueError if hash parameter is not found on memcache DB, AlreadySignedInException
+    Raises ValueError if hash parameter is not found on memcache DB, AlreadyLoggedInException
     if chat_id parameter is already registered and TokenRequestException for internal errors
-    while requesting Spotify API user tokens
-    """
-    def register_spotify_tokens(self, hash, chat_id):
+    while requesting Spotify API user tokens """
+    def register_spotify_tokens(self, chat_id, hash):
 
         # Get real token from memcache
         spot_code = self.memcache.get(hash)
@@ -112,7 +118,7 @@ class RedisAcess:
 
         # Check if user already has been registered on DB
         if self.redis.get('user' + ':' + str(chat_id) + ':' + 'refresh_token') is not None:
-            raise AlreadySignedInException(chat_id)
+            raise AlreadyLoggedInException(chat_id)
 
         # Sending another request, as specified by the Spotify API
         auth_form = {
@@ -130,18 +136,19 @@ class RedisAcess:
         refresh_token = response_params['refresh_token']
         expires_in = response_params['expires_in']
 
+        # ! Storing most information about user on a hash map like 'user:[id]' (including acess token)
+        # ! The refresh token is kept separate due to the necessity of setting an expiration ntime only for it
         self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'acess_token', value = acess_token, ex = expires_in)
-        self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'refresh_token', value = refresh_token)
+        self.redis.hset(name = 'user' + ':' + str(chat_id), key = 'refresh_token', value = refresh_token)
 
-    """
-    Get acess token (as a string). If it's already invalid, make request to get new one.
-    If user is not logged in, returns None
-    """
+
+    """ Get acess token (as a string). If it's already invalid, make request to get new one.
+    If user is not logged in, returns None """
     def get_spotify_acess_token(self, chat_id):
 
         acess_token = self.redis.get('user' + ':' + str(chat_id) + ':' + 'acess_token') # Saved as bytes, not str
         if acess_token is None:
-            refresh_token = self.redis.get('user' + ':' + str(chat_id) + ':' + 'refresh_token')
+            refresh_token = self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'acess_token')
             if refresh_token is not None:
 
                 refresh_form = {
