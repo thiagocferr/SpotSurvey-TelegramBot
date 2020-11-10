@@ -7,12 +7,14 @@ import sys
 from bot_handlers import BotHandlerManager
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
-"""
-Check for necessary configurations and envirnment variables
-Returns 0 if all important variables are defined; 1 if some important variable is missing definition
-"""
-def check_config_vars():
 
+def check_config_vars():
+    """
+    Check for necessary configurations and envirnment variables
+
+    Returns:
+        Status code (int). 0 if all important variables are defined; 1 if some important variable is missing definition
+    """
     message = ''
     status = 0
 
@@ -49,6 +51,7 @@ def check_config_vars():
     return status
 
 def load_handlers(dispatcher):
+    """ Load Telegram Bot Handlers """
     start_handler = CommandHandler('start', BOT_MANAGER.start)
     login_handler = CommandHandler('login', BOT_MANAGER.login)
     create_playlist = CommandHandler('create_playlist', BOT_MANAGER.create_playlist)

@@ -59,12 +59,18 @@ class SpotifyRequest:
         return response
 
 
-""" Exception to represent when a call to a Spotify API endpoint fails """
+
 class SpotifyOperationException(Exception):
+    """ Exception to represent when a call to a Spotify API endpoint fails """
     pass
 
 class SpotifyEndpointAcess:
+    """ Class that encapsulate Spotify API endpoints interactions
 
+    Args:
+        redis_instance (RedisAcess): Instance of RedisAcess class, representing an acess point to its internal functions
+            (related to DB interaction)
+    """
     def __init__(self, redis_instance=None):
 
         if redis_instance is None:
@@ -78,17 +84,31 @@ class SpotifyEndpointAcess:
         self.spotify_config = config['spotify']
         self.spotify_url_list = config['spotify']['url'] # List of all Spotify API endpoints (URLs) used
 
-    """Generates random string, as mentioned here:
-    https://stackoverflow.com/questions/2257441/random-string-generation-with-upper-case-letters-and-digits/23728630#23728630"""
     @staticmethod
     def __code_generator__(size, chars=string.ascii_uppercase + string.digits):
+        """Generates random string with specific size, as mentioned here:
+        https://stackoverflow.com/questions/2257441/random-string-generation-with-upper-case-letters-and-digits/23728630#23728630"""
         return ''.join(secrets.choice(chars) for _ in range(size))
 
-    """ Private method that gets a Spotify User Acess Token and, if it's not available because user is not registered, raises an
-    exception. For reduing repeated code (and maintaning the 'get_spotify_acess_token' return None on these cases)
-
-    IMPORTANT: If we are not able to get tha acess token, two exceptions can occur: a NotLoggedInException or a TokenRequestException"""
     def __get_acess_token_valid__(self, chat_id):
+        """ Private method that gets a Spotify User Acess Token and, if it's not available because user is not registered, raises an \
+        exception. For reducing repeated code (and maintaning the 'get_spotify_acess_token' return None on these cases). It differs from \
+        the function available on RedisAcess class because it generates an error if no acess token can be retrieved
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+
+        Returns:
+            Spotify Acess token (string)
+
+        Raises:
+            NotLoggedInException: Raised if Telegram User with chat_id is not logged in (registered on DB)
+
+            TokenRequestException: Raised when there was some error from the response from Spotify API.
+
+            RedisError: Raised if there was some internal Redis error
+        """
+
         try:
             acess_token = self.redis_instance.get_spotify_acess_token(chat_id)
             if acess_token is None: # Needs user to be logged in
@@ -99,8 +119,13 @@ class SpotifyEndpointAcess:
         return acess_token
 
 
-    """Generates authorization link (string) for user. Start of Authorization Code Flow"""
     def authorization_link(self):
+        """Generates authorization link (string) for user. Start of Authorization Code Flow
+
+        Returns:
+            Spotify Authorization link (string)
+
+        """
         scope = self.spotify_config['acessScope']
 
         state = self.__code_generator__(16)
@@ -117,8 +142,29 @@ class SpotifyEndpointAcess:
         login_url = self.spotify_url_list['loginURL'] + encoded_query
         return login_url
 
-    """ register Spotify User tokens and Spotify User ID """
+
     def register(self, chat_id, hash):
+        """
+        Register Acess and Refresh keys from the user's Spotify Account to the internal database (associating them with \
+            the Chat ID of Telegram) and associate Spotify's User ID to the local Chat ID.
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+            hash (string): A Hash value. Should be a valid hash present on the Redis DB 1, where we store multiple hashes
+                values associated with the true Spotify Auth Code
+
+        Raises:
+            ValueError: Raised if hash parameter is not found on memcache DB.
+
+            AlreadyLoggedInException: Raised if Telegram User (chat_id) is already logged in and, therefore, doesn't need
+                to be registered again on DB
+
+            TokenRequestException: Raised when there was some error from the response from Spotify API
+
+            RedisError: Raised if there was some internal Redis error
+
+        """
+
         try:
             self.redis_instance.register_spotify_tokens(chat_id, hash)
 
@@ -135,11 +181,24 @@ class SpotifyEndpointAcess:
         except:
             raise
 
-    def link_playlist_to_telegram_user(self, playlist_id, chat_id):
-        self.redis_instance.register_spotify_playlist_id(chat_id, playlist_id)
 
-    """ Creates a Spotify Playlist. If sucessful, returns Playlist ID """
     def create_playlist(self, chat_id, playlist_name, playlist_description=None):
+        """ Creates a Spotify Playlist
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+            playlist_name (string): Name of the playlist to be created
+            playlist_description (string): Description the playlist to be created
+
+        Returns:
+            Spotify Playlist ID (string)
+
+        Raises:
+            NotLoggedInException: Raised if Telegram User with chat_id is not logged in (registered on DB)
+            TokenRequestException: Raised when there was some error while getting Spotify Acess token from the Spotify endpoint.
+            RedisError: Raised if there was some internal Redis error while getting the acess token or the Spotify's User ID
+
+        """
 
         try:
             acess_token = self.__get_acess_token_valid__(chat_id)
@@ -162,8 +221,27 @@ class SpotifyEndpointAcess:
         response = SpotifyRequest('POST', url, headers=header, json=body).send()
         return response.json().get('id')
 
-    """ Check if playlist associated with the user chat exists on Spotify itself """
+    """  """
     def playlist_already_registered(self, chat_id):
+        """ Check if playlist associated with the user chat exists on Spotify itself (checking ids from all Spotify Playlist \
+            associated with logged-in user).
+
+        Note: If there's a Spotify Playlist registered on DB but not on the actual Spotify service, returns False. If there is no \
+            DB registry, but the playlist actually exists, returns True.
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+
+        Returns:
+            If there is already a Spotify Playlist (boolean)
+
+        Raises:
+            NotLoggedInException: Raised if Telegram User with chat_id is not logged in (registered on DB)
+            TokenRequestException: Raised when there was some error while getting Spotify Acess token from the Spotify endpoint.
+            RedisError: Raised if there was some internal Redis error while getting the acess token or the Spotify's User ID
+
+        """
+
         try:
             acess_token = self.__get_acess_token_valid__(chat_id)
         except:
@@ -192,6 +270,24 @@ class SpotifyEndpointAcess:
                         return True
 
         return False
+
+    def link_playlist_to_telegram_user(self, playlist_id, chat_id):
+        """
+        Associate a Spotify Playlist ID with a Telegram Chat Id on DB
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+            playlist_id (string): ID of Spotify Playlist
+
+        Raises:
+            RedisError: Raised if there was some internal Redis error
+        """
+
+        try:
+            self.redis_instance.register_spotify_playlist_id(chat_id, playlist_id)
+        except RedisAcess:
+            raise
+
 
 
     def test(self, chat_id):

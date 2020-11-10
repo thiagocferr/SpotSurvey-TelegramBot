@@ -27,13 +27,11 @@ class BotHandlerManager:
 
         # As we have no intension of changing object members (only acessing them), we are sharing Redis DB connection
         self.spotify_endpoint_acess = SpotifyEndpointAcess(self.redis_instance)
-
-
         with open('config.yaml', 'r') as f:
             self.config_file = yaml.safe_load(f)
 
-    """ '/start' command """
     def start(self, update, context):
+        """ '/start' command """
         if len(context.args) == 0:
             context.bot.send_message(chat_id = update.effective_chat.id, text = "I'm a bot, please talk to me!")
         else:
@@ -115,18 +113,19 @@ class BotHandlerManager:
                     text = ''' Playlist created! '''.format(playlist_name)
                 )
 
-    """ Echoes what user says (not a command) """
+
     def echo(self, update, context):
+        """ Echoes what user says (not a command) """
         context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text)
 
-    """'/login' command. Makes user authentication from Spotify"""
-    def login(self, update, context):
 
+    def login(self, update, context):
+        """'/login' command. Makes user authentication from Spotify"""
         login_url = self.spotify_endpoint_acess.authorization_link()
         context.bot.send_message(chat_id=update.effective_chat.id, text=login_url)
 
-    """ A test function ('/test'). Gets the name of the Spotify account user """
-    def test_api(self, update, context):
 
+    def test_api(self, update, context):
+        """ A test function ('/test'). Gets the name of the Spotify account user """
         info = self.spotify_endpoint_acess.test(update.effective_chat.id)
         context.bot.send_message(chat_id = update.effective_chat.id, text = info.get('display_name'))

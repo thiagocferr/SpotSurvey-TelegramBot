@@ -8,9 +8,10 @@ from redis import Redis, RedisError
 
 LOGGER = logging.getLogger(__name__)
 
-""" Exception Class that holds all the needed Redis connections and functions related to
-Spotify Tokens (like getting and refreshing acess keys or getting Spotify API tokens) """
+
 class AlreadyLoggedInException(Exception):
+    """ Exception Class that holds all the needed Redis connections and functions related to
+    Spotify Tokens (like getting and refreshing acess keys or getting Spotify API tokens) """
     def __init__(self, chat_id):
 
         self.id = chat_id
@@ -21,8 +22,9 @@ class AlreadyLoggedInException(Exception):
     def __str__(self):
         return self.message
 
-""" Exception class for using with opeartions that require the user to be logged in with a Spotify Account """
+
 class NotLoggedInException(Exception):
+    """ Exception class for using with opeartions that require the user to be logged in with a Spotify Account """
     def __init__(self, chat_id):
 
         self.id = chat_id
@@ -33,13 +35,14 @@ class NotLoggedInException(Exception):
     def __str__(self):
         return self.message
 
-""" Exception class used to represent some kind of internal error during processo of obtaining
-user tokens from the Spotify API """
+
 class TokenRequestException(Exception):
+    """ Exception class used to represent some kind of internal error during processo of obtaining
+    user tokens from the Spotify API """
     pass
 
 class RedisAcess:
-
+    """ Class that gives acess to al Redis databases and functions related to getting and setting values """
     def __init__(self):
 
         self.redis = Redis(
@@ -63,8 +66,24 @@ class RedisAcess:
             self.spotify_user_url = config['spotify']['url']['userURL']
 
 
-    # TODO: Treat case when request is rejected because of too many requests
-    def __user_token_request_process__(self, body_form, is_register):
+    # TODO: Change for SpotifyRequest class
+    def __user_token_request_process__(self, body_form, is_refresh):
+        """
+        Unites behavior for getting acess and refresh tokens from Spotify or for getting new acess token
+        by using the refresh token
+
+        Args:
+            body_form (dict): Form to be sent to Spotify Token endpoint (body of request)
+            is_refresh (boolean): If current request is for refreshing acess code or not
+
+        Returns:
+            Dictionary with response parameters (Acess Token, Expires In and, if it isn't a refresh operation,
+            the refresh code)
+
+        Raises:
+            TokenRequestException: Raised when there was some error from the response from Spotify API.
+
+        """
 
         return_params = {}
 
@@ -83,9 +102,9 @@ class RedisAcess:
 
             # Getting necessary fields
             return_params['acess_token'] = response['access_token'] # ACESS TOKEN
-            return_params['expires_in'] = response.get('expires_in', 3600) # EXPIRATION TIME.
+            return_params['expires_in'] = response.get('expires_in', 3600) # EXPIRATION TIME. DEFAULT TO 1 HOUR
 
-            if is_register:
+            if not is_register:
                 return_params['refresh_token'] = response['refresh_token'] # REFRESH TOKEN
 
         except requests.HTTPError:
@@ -103,19 +122,33 @@ class RedisAcess:
 
         return return_params
 
-    """Register Spotify tokens on redis DB be getting verification token from memcache
-
-    Raises ValueError if hash parameter is not found on memcache DB, AlreadyLoggedInException
-    if chat_id parameter is already registered and TokenRequestException for internal errors
-    while requesting Spotify API user tokens """
     def register_spotify_tokens(self, chat_id, hash):
+
+        """
+        Register Spotify tokens on Redis DB by getting Authentication token from memcache (Redis database 1)
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+            hash (string): A Hash value. Should be a valid hash present on the Redis DB 1, where we store multiple hashes
+                values associated with the true Spotify Auth Code
+
+        Raises:
+            ValueError: Raised if hash parameter is not found on memcache DB.
+
+            AlreadyLoggedInException: Raised if Telegram User (chat_id) is already logged in and, therefore, doesn't need
+                to be registered again on DB
+
+            TokenRequestException: Raised when there was some error from the response from Spotify API
+
+            RedisError: Raised if there was some internal Redis error
+
+        """
 
         # Get real token from memcache
         spot_code = self.memcache.get(hash)
         if not spot_code:
             LOGGER.error(f'Hash {hash} was not found on memcache database')
             raise ValueError(f'Invalid hash: Hash {hash} not found')
-
         self.memcache.delete(hash)
 
         # Check if user already has been registered on DB
@@ -130,7 +163,7 @@ class RedisAcess:
         }
 
         try:
-            response_params = self.__user_token_request_process__(auth_form, is_register=True)
+            response_params = self.__user_token_request_process__(auth_form, is_refresh=False)
         except:
             raise
 
@@ -139,18 +172,35 @@ class RedisAcess:
         expires_in = response_params['expires_in']
 
         # ! Storing most information about user on a hash map like 'user:[id]' (including acess token)
-        # ! The refresh token is kept separate due to the necessity of setting an expiration ntime only for it
-        self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'acess_token', value = acess_token, ex = expires_in)
-        self.redis.hset(name = 'user' + ':' + str(chat_id), key = 'refresh_token', value = refresh_token)
+        # ! The refresh token is kept separate due to the necessity of setting an expiration time only for it
+        try:
+            self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'acess_token', value = acess_token, ex = expires_in)
+            self.redis.hset(name = 'user' + ':' + str(chat_id), key = 'refresh_token', value = refresh_token)
+        except RedisError:
+            raise
 
 
-    """ Get acess token (as a string). If it's already invalid, make request to get new one.
-    If user is not logged in, returns None """
     def get_spotify_acess_token(self, chat_id):
+        """
+        Get Spotify Acess token from internal DB. If not found (could have already expired), create new one and sve
+        on DB.
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+
+        Returns:
+            Spotify API Acess token (string)
+
+        Raises:
+            TokenRequestException: Raised when there was some error from the response from Spotify API.
+            RedisError: Raised if there was some internal Redis error
+        """
 
         acess_token = self.redis.get('user' + ':' + str(chat_id) + ':' + 'acess_token') # Saved as bytes, not str
         if acess_token is None:
             refresh_token = self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'refresh_token')
+
+            # If refresh_token is None, user is not logged in, so it will return None
             if refresh_token is not None:
 
                 refresh_form = {
@@ -159,7 +209,7 @@ class RedisAcess:
                 }
 
                 try:
-                    response_params = self.__user_token_request_process__(refresh_form, is_register=False)
+                    response_params = self.__user_token_request_process__(refresh_form, is_refresh=True)
                 except:
                     raise
 
@@ -176,8 +226,17 @@ class RedisAcess:
 
         return acess_token
 
-    # TODO: Treat case of request refused
     def register_spotify_user_id(self, chat_id, user_id):
+        """
+        Associate a Spotify User ID with a Telegram Chat Id on DB
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+            user_id (string): ID of Spotify User
+
+        Raises:
+            RedisError: Raised if there was some internal Redis error
+        """
         try:
             self.redis.hset(name = 'user' + ':' + str(chat_id), key = 'user_id', value = user_id)
         except:
@@ -185,6 +244,19 @@ class RedisAcess:
 
 
     def get_spotify_user_id(self, chat_id):
+        """
+        Get Spotify User ID from DB
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+
+        Returns:
+            Spotify User ID (string)
+
+        Raises:
+            RedisError: Raised if there was some internal Redis error
+        """
+
         try:
             b_user_id = self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'user_id')
         except:
@@ -195,13 +267,37 @@ class RedisAcess:
         else:
             return b_user_id.decode('utf-8')
 
-    def register_spotify_playlist_id(self, chat_id, user_id):
+    def register_spotify_playlist_id(self, chat_id, playlist_id):
+        """
+        Associate a Spotify Playlist ID with a Telegram Chat Id on DB
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+            playlist_id (string): ID of Spotify Playlist
+
+        Raises:
+            RedisError: Raised if there was some internal Redis error
+        """
+
         try:
-            self.redis.hset(name = 'user' + ':' + str(chat_id), key = 'playlist_id', value = user_id)
+            self.redis.hset(name = 'user' + ':' + str(chat_id), key = 'playlist_id', value = playlist_id)
         except:
             raise
 
     def get_spotify_playlist_id(self, chat_id):
+        """
+        Get Spotify Playlist ID from DB
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+
+        Returns:
+            Spotify Playlist ID (string)
+
+        Raises:
+            RedisError: Raised if there was some internal Redis error
+        """
+
         try:
             b_playlist_id = self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'playlist_id')
         except:
