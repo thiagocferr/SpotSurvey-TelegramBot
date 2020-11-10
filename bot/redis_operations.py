@@ -104,7 +104,7 @@ class RedisAcess:
             return_params['acess_token'] = response['access_token'] # ACESS TOKEN
             return_params['expires_in'] = response.get('expires_in', 3600) # EXPIRATION TIME. DEFAULT TO 1 HOUR
 
-            if not is_register:
+            if not is_refresh:
                 return_params['refresh_token'] = response['refresh_token'] # REFRESH TOKEN
 
         except requests.HTTPError:

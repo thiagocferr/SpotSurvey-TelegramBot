@@ -13,6 +13,8 @@ from redis_operations import RedisAcess, AlreadyLoggedInException, TokenRequestE
 
 LOGGER = logging.getLogger(__name__)
 
+# TODO: Test pagins mechanism
+# TODO: Treat API Endpoints erros better (raising, etc...)
 class SpotifyRequest:
 
     def __init__(self, method, url, data=None, headers=None, params=None, json=None):
@@ -29,7 +31,14 @@ class SpotifyRequest:
         if response.json().get('error') is not None:
             error_message = response.json()['error']['message']
             LOGGER.error('Error code: {}'.format(response.status_code))
-            LOGGER.error('Error code {} during Spotify call to URL {}: Message = {}'.format(response.status_code, self.url, error_message))
+            LOGGER.error('Error code {} during Spotify call to URL {} : Message = {}'.format(response.status_code, self.url, error_message))
+
+            raise SpotifyOperationException()
+
+    def change_data(self, new_data):
+        self.data = new_data
+    def change_json(self, new_json):
+        self.json = new_json
 
     def get_next_page(self):
         while self.url is not None:
@@ -57,8 +66,6 @@ class SpotifyRequest:
         self.url = next_url
 
         return response
-
-
 
 class SpotifyOperationException(Exception):
     """ Exception to represent when a call to a Spotify API endpoint fails """
@@ -90,6 +97,23 @@ class SpotifyEndpointAcess:
         https://stackoverflow.com/questions/2257441/random-string-generation-with-upper-case-letters-and-digits/23728630#23728630"""
         return ''.join(secrets.choice(chars) for _ in range(size))
 
+    @staticmethod
+    def __split_list_evenly__(lst, size_of_chunks):
+        """ Generates a list with multiple sublists of size at least 'size_of_chunks'.
+        """
+
+        if size_of_chunks <= 0:
+            return
+
+        def chunks(lst, n):
+            """Yield successive n-sized chunks from lst.
+            Function extracted from https://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks/312464"""
+            for i in range(0, len(lst), n):
+                yield lst[i:i + n]
+
+        return list(chunks(lst, size_of_chunks))
+
+    #! TODO: As this is called several time from most places, try getting this to be stored on memory for a while
     def __get_acess_token_valid__(self, chat_id):
         """ Private method that gets a Spotify User Acess Token and, if it's not available because user is not registered, raises an \
         exception. For reducing repeated code (and maintaning the 'get_spotify_acess_token' return None on these cases). It differs from \
@@ -190,9 +214,6 @@ class SpotifyEndpointAcess:
             playlist_name (string): Name of the playlist to be created
             playlist_description (string): Description the playlist to be created
 
-        Returns:
-            Spotify Playlist ID (string)
-
         Raises:
             NotLoggedInException: Raised if Telegram User with chat_id is not logged in (registered on DB)
             TokenRequestException: Raised when there was some error while getting Spotify Acess token from the Spotify endpoint.
@@ -211,7 +232,7 @@ class SpotifyEndpointAcess:
             'Content-Type': 'application/json'
         }
         # Formating string to insert user_id on URL
-        url = self.spotify_url_list['playlist']['createURL'].format(user_id=user_id)
+        url = self.spotify_url_list['playlist']['userURL'].format(user_id=user_id)
         body = {
             'name': playlist_name,
             'public': 'false',
@@ -219,9 +240,13 @@ class SpotifyEndpointAcess:
         }
 
         response = SpotifyRequest('POST', url, headers=header, json=body).send()
-        return response.json().get('id')
+        playlist_id = response.json().get('id')
 
-    """  """
+        try:
+            self.redis_instance.register_spotify_playlist_id(chat_id, playlist_id)
+        except RedisAcess:
+            raise
+
     def playlist_already_registered(self, chat_id):
         """ Check if playlist associated with the user chat exists on Spotify itself (checking ids from all Spotify Playlist \
             associated with logged-in user).
@@ -249,14 +274,12 @@ class SpotifyEndpointAcess:
 
         local_playlist_id = self.redis_instance.get_spotify_playlist_id(chat_id)
 
-        #LOGGER.info(local_playlist_id)
 
         if local_playlist_id is None:
             return False
 
         header = {'Authorization': 'Bearer ' + acess_token}
         url = self.spotify_url_list['playlist']['currentUserURL']
-        # Could specify some query parameters here...
 
         request = SpotifyRequest('GET', url, headers=header)
 
@@ -271,32 +294,130 @@ class SpotifyEndpointAcess:
 
         return False
 
-    def link_playlist_to_telegram_user(self, playlist_id, chat_id):
-        """
-        Associate a Spotify Playlist ID with a Telegram Chat Id on DB
+    # ! NOTE: Spotify can only send, at once, 100 objects to be deleted from playlist
+    def delete_all_tracks(self, chat_id, playlist_id=None):
+        """ Deletes all tracks from a playlist (if argument 'playlist_id' is specified) or from
+        the playlist associated with user 'chat_id'
 
         Args:
             chat_id (int or string): ID of Telegram Bot chat
-            playlist_id (string): ID of Spotify Playlist
+            playlist_id (int) (OPTIONAL): ID of Spotify Playlist to remove tracks from
 
         Raises:
-            RedisError: Raised if there was some internal Redis error
+            NotLoggedInException: Raised if Telegram User with chat_id is not logged in (registered on DB)
+            TokenRequestException: Raised when there was some error while getting Spotify Acess token from the Spotify endpoint
+            RedisError: Raised if there was some internal Redis error while getting the acess token or the Spotify's User ID
+            SpotifyOperationException: Raised when a Spotify Request has failed
+
         """
-
         try:
-            self.redis_instance.register_spotify_playlist_id(chat_id, playlist_id)
-        except RedisAcess:
-            raise
-
-
-
-    def test(self, chat_id):
-        try:
-            self.__get_acess_token_valid__(chat_id)
+            acess_token = self.__get_acess_token_valid__(chat_id)
+            if playlist_id is None:
+                playlist_id = self.redis_instance.get_spotify_playlist_id(chat_id)
         except:
             raise
 
-        header = {'Authorization': 'Bearer ' + user_token}
+
+        header = {
+            'Authorization': 'Bearer ' + acess_token,
+            'Content-Type': 'application/json'
+        }
+
+        url = self.spotify_url_list['playlist']['tracksURL'].format(playlist_id = playlist_id)
+
+        # Test if we can get all tracks
+        try:
+            all_tracks = self.get_all_tracks(chat_id, playlist_id)
+        except SpotifyOperationException:
+            raise
+
+        paged_all_tracks = SpotifyEndpointAcess.__split_list_evenly__(all_tracks, 100)
+
+        # Iniciate request without any data (filled during loop throught pages on try block below)
+        request = SpotifyRequest('DELETE', url, headers=header, json=None)
+
+        # Encapsulates set of Spotify Opearions that can cause an Exception (SpotifyOperationException)
+        # If it occurs between pages, it should be noted.
+        try:
+            page = 0 # Keep tabs on page
+
+            # looping throught the pages of music tracks, changing what data is sent
+            for page_tracks in paged_all_tracks:
+                new_json = {
+                    "tracks": page_tracks
+                }
+
+                request.change_json(new_json)
+                response = request.send()
+                page += 1
+
+        # TODO: Not best practice. Maybe change later
+        except SpotifyOperationException as e:
+            message = ""
+            if page != 0:
+                message = """ Warning: Delete operation occured in middle of total removal of playlist """
+                LOGGER.warning(message)
+
+            raise SpotifyOperationException(message)
+
+
+    # ! NOTE: All tracks are returned; No paging on return object
+    def get_all_tracks(self, chat_id, playlist_id=None):
+        """ Get all tracks (URI's) from a Spotify Playlist (if 'playlist_id' is defined) or from
+        the playlist associated with user 'chat_id'
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+            playlist_id (int) (OPTIONAL): ID of Spotify Playlist to remove tracks from
+
+        Raises:
+            NotLoggedInException: Raised if Telegram User with chat_id is not logged in (registered on DB)
+            TokenRequestException: Raised when there was some error while getting Spotify Acess token from the Spotify endpoint
+            RedisError: Raised if there was some internal Redis error while getting the acess token or the Spotify's User ID
+            SpotifyOperationException: Raised when a Spotify Request has failed
+
+        """
+
+        try:
+            acess_token = self.__get_acess_token_valid__(chat_id)
+            if playlist_id is None:
+                playlist_id = self.redis_instance.get_spotify_playlist_id(chat_id)
+        except:
+            raise
+
+        header = {
+            'Authorization': 'Bearer ' + acess_token,
+        }
+        query = {
+            'fields': 'items(track(uri))' # Get only URI (necessary for track deletion)
+        }
+
+        url = self.spotify_url_list['playlist']['tracksURL'].format(playlist_id = playlist_id)
+        request = SpotifyRequest('GET', url, headers=header, params=query)
+
+        # Encapsulates set of Spotify Opearions that can cause an Exception (SpotifyOperationException)
+        try:
+            all_tracks = []
+
+            # Get all tracks and put their URI (on the format specified by the remove tracks operation)
+            # (see https://developer.spotify.com/documentation/web-api/reference/playlists/remove-tracks-playlist/#removing-all-occurrences-of-specific-items)
+            for response in request.get_next_page():
+                response_tracks = response.json().get('items') # TODO: This can cause uncaught exception?
+                for track in response_tracks:
+                    all_tracks.append({"uri": track["track"]["uri"]})
+
+        except SpotifyOperationException:
+            raise
+
+        return all_tracks
+
+    def test(self, chat_id):
+        try:
+            acess_token = self.__get_acess_token_valid__(chat_id)
+        except:
+            raise
+
+        header = {'Authorization': 'Bearer ' + acess_token}
         r = SpotifyRequest('GET', self.spotify_url_list['userURL'], headers=header).send()
 
         return r.json()

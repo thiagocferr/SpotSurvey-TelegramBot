@@ -54,14 +54,22 @@ def load_handlers(dispatcher):
     """ Load Telegram Bot Handlers """
     start_handler = CommandHandler('start', BOT_MANAGER.start)
     login_handler = CommandHandler('login', BOT_MANAGER.login)
+
     create_playlist = CommandHandler('create_playlist', BOT_MANAGER.create_playlist)
+    get_playlist = CommandHandler('get_playlist', BOT_MANAGER.get_playlist)
+    clean_playlist = CommandHandler('clean_playlist', BOT_MANAGER.clean_playlist)
     test_api_handler = CommandHandler('test', BOT_MANAGER.test_api)
+
     echo_handler = MessageHandler(Filters.text, BOT_MANAGER.echo)
 
     dispatcher.add_handler(start_handler)
     dispatcher.add_handler(login_handler)
+
     dispatcher.add_handler(create_playlist)
+    dispatcher.add_handler(get_playlist)
+    dispatcher.add_handler(clean_playlist)
     dispatcher.add_handler(test_api_handler)
+
     dispatcher.add_handler(echo_handler)
 
 def start_bot():

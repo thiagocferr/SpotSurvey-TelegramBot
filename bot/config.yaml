@@ -7,8 +7,9 @@ spotify:
         userURL: 'https://api.spotify.com/v1/me'
         redirectURL: 'https://spot-survey-server4.loca.lt/callback' # ! Needs to be registered on Spotify API Dashboard!
         playlist:
-            createURL: 'https://api.spotify.com/v1/users/{user_id}/playlists'
+            userURL: 'https://api.spotify.com/v1/users/{user_id}/playlists'
             currentUserURL: 'https://api.spotify.com/v1/me/playlists'
+            tracksURL: 'https://api.spotify.com/v1/playlists/{playlist_id}/tracks'
 
     acessScope: 'user-read-private playlist-modify-private playlist-read-private user-top-read user-read-recently-played'
     playlistName: "SpotSurveyBot's playlist"

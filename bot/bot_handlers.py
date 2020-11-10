@@ -10,12 +10,13 @@ import os
 import yaml
 import logging
 import time
+import json
 
 from urllib.parse import urljoin, urlencode
 from redis import RedisError
 
 from redis_operations import RedisAcess, AlreadyLoggedInException, NotLoggedInException, TokenRequestException # ! Local module
-from spotify_endpoint_acess import SpotifyEndpointAcess # ! Local module
+from spotify_endpoint_acess import SpotifyEndpointAcess, SpotifyOperationException # ! Local module
 
 LOGGER = logging.getLogger(__name__)
 
@@ -97,21 +98,35 @@ class BotHandlerManager:
             # Create playlist. If no error, link it to telegram user
             try:
                 playlist_id = self.spotify_endpoint_acess.create_playlist(chat_id, playlist_name, playlist_description)
-            except Exception as e:
+            except:
                 LOGGER.exception('')
                 context.bot.send_message(
                     chat_id = chat_id,
                     text = '''Error: Could not create playlist '{}' '''.format(playlist_name)
                 )
             else:
-                # TODO: Envolve line below in try/except
-                self.spotify_endpoint_acess.link_playlist_to_telegram_user(playlist_id, chat_id)
-
                 time.sleep(2)
                 context.bot.send_message(
                     chat_id = chat_id,
-                    text = ''' Playlist created! '''.format(playlist_name)
+                    text = ''' Playlist created! '''
                 )
+
+    def get_playlist(self, update, context):
+
+        #all_tracks = self.spotify_endpoint_acess.get_all_tracks(update.effective_chat.id)
+        #all_tracks_parsed = json.dumps(all_tracks, indent=4)
+
+        context.bot.send_message(chat_id=update.effective_chat.id, text="Not implemented yet!")
+
+    def clean_playlist(self, update, context):
+
+        try:
+            self.spotify_endpoint_acess.delete_all_tracks(update.effective_chat.id)
+        except SpotifyOperationException as e:
+            if str(e) is not None:
+                context.bot.send_message(chat_id=update.effective_chat.id, text=str(e))
+        else:
+            context.bot.send_message(chat_id=update.effective_chat.id, text="Removed all tracks from playlist")
 
 
     def echo(self, update, context):
