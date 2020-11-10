@@ -56,12 +56,14 @@ class RedisAcess:
             db = 1 # Memcache, filled on webserver side (to be delete when recieved here)
         )
 
-        # URL to get and refresh Spotify API tokens
-        self.spotify_token_url = yaml.safe_load(open('config.yaml'))['spotify']['url']['tokenURL']
+        with open('config.yaml') as f:
+            config = yaml.safe_load(f)
+            self.spotify_token_url = config['spotify']['url']['tokenURL']
+            self.spotify_redirect_url = config['spotify']['url']['redirectURL']
+            self.spotify_user_url = config['spotify']['url']['userURL']
 
-        # Redirect URL (needed in order to get acess to both acess and refresh token)
-        self.spotify_redirect_url = yaml.safe_load(open('config.yaml'))['spotify']['url']['redirectURL']
 
+    # TODO: Treat case when request is rejected because of too many requests
     def __user_token_request_process__(self, body_form, is_register):
 
         return_params = {}
@@ -117,7 +119,7 @@ class RedisAcess:
         self.memcache.delete(hash)
 
         # Check if user already has been registered on DB
-        if self.redis.get('user' + ':' + str(chat_id) + ':' + 'refresh_token') is not None:
+        if self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'refresh_token') is not None:
             raise AlreadyLoggedInException(chat_id)
 
         # Sending another request, as specified by the Spotify API
@@ -148,7 +150,7 @@ class RedisAcess:
 
         acess_token = self.redis.get('user' + ':' + str(chat_id) + ':' + 'acess_token') # Saved as bytes, not str
         if acess_token is None:
-            refresh_token = self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'acess_token')
+            refresh_token = self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'refresh_token')
             if refresh_token is not None:
 
                 refresh_form = {
@@ -164,9 +166,52 @@ class RedisAcess:
                 acess_token = response_params['acess_token']
                 expires_in = response_params['expires_in']
 
-                self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'acess_token', value = acess_token, ex = expires_in)
+                try:
+                    self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'acess_token', value = acess_token, ex = expires_in)
+                except:
+                    raise
         else:
             # If entered both if statments, acess_token is a string. Else, it's bytes (from the get operation on the Redis DB)
             acess_token = acess_token.decode('utf-8')
 
         return acess_token
+
+    # TODO: Treat case of request refused
+    def register_spotify_user_id(self, chat_id, user_id):
+        try:
+            self.redis.hset(name = 'user' + ':' + str(chat_id), key = 'user_id', value = user_id)
+        except:
+            raise
+
+
+    def get_spotify_user_id(self, chat_id):
+        try:
+            b_user_id = self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'user_id')
+        except:
+            raise
+
+        if b_user_id is None:
+            return b_user_id
+        else:
+            return b_user_id.decode('utf-8')
+
+    def register_spotify_playlist_id(self, chat_id, user_id):
+        try:
+            self.redis.hset(name = 'user' + ':' + str(chat_id), key = 'playlist_id', value = user_id)
+        except:
+            raise
+
+    def get_spotify_playlist_id(self, chat_id):
+        try:
+            b_playlist_id = self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'playlist_id')
+        except:
+            raise
+
+        if b_playlist_id is None:
+            return b_playlist_id
+        else:
+            return b_playlist_id.decode('utf-8')
+
+
+
+
