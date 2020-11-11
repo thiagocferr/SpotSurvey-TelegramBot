@@ -113,10 +113,10 @@ class BotHandlerManager:
 
     def get_playlist(self, update, context):
 
-        #all_tracks = self.spotify_endpoint_acess.get_all_tracks(update.effective_chat.id)
-        #all_tracks_parsed = json.dumps(all_tracks, indent=4)
+        all_tracks = self.spotify_endpoint_acess.get_all_tracks(update.effective_chat.id)
+        all_tracks_parsed = json.dumps(all_tracks, separators=(',', ':'))
 
-        context.bot.send_message(chat_id=update.effective_chat.id, text="Not implemented yet!")
+        context.bot.send_message(chat_id=update.effective_chat.id, text=all_tracks_parsed)
 
     def clean_playlist(self, update, context):
 
@@ -127,6 +127,10 @@ class BotHandlerManager:
                 context.bot.send_message(chat_id=update.effective_chat.id, text=str(e))
         else:
             context.bot.send_message(chat_id=update.effective_chat.id, text="Removed all tracks from playlist")
+
+    def add_music(self, update, context):
+        self.spotify_endpoint_acess.add_tracks(update.effective_chat.id, ['spotify:track:6rqhFgbbKwnb9MLmUQDhG6'])
+        context.bot.send_message(chat_id=update.effective_chat.id, text="Music added!")
 
 
     def echo(self, update, context):

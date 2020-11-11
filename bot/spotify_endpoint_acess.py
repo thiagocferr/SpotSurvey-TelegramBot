@@ -16,6 +16,17 @@ LOGGER = logging.getLogger(__name__)
 # TODO: Test pagins mechanism
 # TODO: Treat API Endpoints erros better (raising, etc...)
 class SpotifyRequest:
+    """ Class that encapsulate requests for the Spotify API
+
+    Params:
+        method (string): Which HTTP Method (Verb) to use
+        url (string): URL to where send HTTP request
+        data (dictionary) (optional): Data to be sent as request body (for sending JSON-like structure, use parameter 'json')
+        headers (dictionary) (optional): Headers of the request
+        params (dictionary) (optional): Parameters to be sent with the URL (like a query string)
+        json (dictionary) (optional): JSON to be sent as request body
+
+    """
 
     def __init__(self, method, url, data=None, headers=None, params=None, json=None):
         self.method = method
@@ -28,6 +39,9 @@ class SpotifyRequest:
         self.prev_url = None
 
     def __check_response__(self, response):
+        """ Check if a request has failed (if recieved JSON has an error code, as seen on \\
+        https://developer.spotify.com/documentation/web-api/#regular-error-object) """
+
         if response.json().get('error') is not None:
             error_message = response.json()['error']['message']
             LOGGER.error('Error code: {}'.format(response.status_code))
@@ -35,12 +49,32 @@ class SpotifyRequest:
 
             raise SpotifyOperationException()
 
+
     def change_data(self, new_data):
+        """ Change request body
+
+        Args:
+            new_data (dictionary): New data of request
+        """
         self.data = new_data
     def change_json(self, new_json):
+        """ Change request body (as a JSON)
+
+        Args:
+            new_json (dictionary): New JSON object of request
+        """
         self.json = new_json
 
     def get_next_page(self):
+        """ For requests that are paginated (see Pagin Object on \
+        https://developer.spotify.com/documentation/web-api/reference/object-model/#paging-object)
+
+        The way this works is: as pagination on the Spotify API consists of a field 'next' with the URL of the next page
+        if there is another page, yield result and change this object's URL to be the next page
+
+        Returns:
+            Response object
+        """
         while self.url is not None:
             yield self.send()
 
@@ -60,8 +94,8 @@ class SpotifyRequest:
 
         self.__check_response__(response)
 
+        # In case of response is paginated
         next_url = response.json().get('next')
-
         self.prev_url = self.url
         self.url = next_url
 
@@ -294,10 +328,134 @@ class SpotifyEndpointAcess:
 
         return False
 
+    def __add_or_delete_tracks__(self, chat_id, tracks, method, playlist_id=None):
+
+        """ As the operations of adding or removing tracks from a playlist are similar(with a difference on the HTTP verb and \
+        on the structure of body), this functions serves to avoid redundance
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+            tracks (list of strings): Tracks URI to be added to Playlist.
+            method (string): Which HTTP method will be used. 'POST' for adding tracks, 'DELETE' for removing tracks
+            playlist_id (int) (OPTIONAL): ID of Spotify Playlist to remove tracks from
+
+        Raises:
+            NotLoggedInException: Raised if Telegram User with chat_id is not logged in (registered on DB)
+            TokenRequestException: Raised when there was some error while getting Spotify Acess token from the Spotify endpoint
+            RedisError: Raised if there was some internal Redis error while getting the acess token or the Spotify's User ID
+            SpotifyOperationException: Raised when a Spotify Request has failed
+
+        """
+
+        try:
+            acess_token = self.__get_acess_token_valid__(chat_id)
+            if playlist_id is None:
+                playlist_id = self.redis_instance.get_spotify_playlist_id(chat_id)
+        except:
+            raise
+
+        header = {
+            'Authorization': 'Bearer ' + acess_token,
+            'Content-Type': 'application/json'
+        }
+
+        url = self.spotify_url_list['playlist']['tracksURL'].format(playlist_id = playlist_id)
+
+        # As the requested body parameter related to tracks are different between the add and delete operations, first convert tem to the right one
+        formated_tracks_list = []
+        if method == 'POST':
+            formated_tracks_list = tracks
+        elif method == 'DELETE':
+            for uri in tracks:
+                formated_tracks_list.append({"uri": uri})
+
+        # If the number of tracks to be added is greater than the maximum that Spotify accepts per request, split list of tracks
+        page_tracks_list = SpotifyEndpointAcess.__split_list_evenly__(formated_tracks_list, 100)
+
+        # Iniciate request without any data (filled during loop throught pages on try block below)
+        request = SpotifyRequest(method, url, headers=header, json=None)
+
+        # Encapsulates set of Spotify Opearions that can cause an Exception (SpotifyOperationException)
+        # If it occurs between pages, it should be noted.
+        try:
+            page = 0 # Keep tabs on page
+
+            # looping throught the pages of music tracks, changing what data is sent
+            for page_tracks in page_tracks_list:
+
+                new_json = {}
+                if method == 'POST':
+                    new_json = {
+                        "uris": page_tracks
+                    }
+
+                elif method == 'DELETE':
+
+                    new_json = {
+                        "tracks": page_tracks
+                    }
+
+                request.change_json(new_json)
+                response = request.send()
+                page += 1
+
+        # TODO: Not best practice. Maybe change later
+        except SpotifyOperationException as e:
+            message = ""
+            if page != 0:
+                message = """ Warning: Operation error occured in the middle of process. Partial result is to be expected"""
+                LOGGER.warning(message)
+
+            raise SpotifyOperationException(message)
+
+    def add_tracks(self, chat_id, tracks, playlist_id=None):
+        """ Add tracks to a Spotify Playlist. If parameter 'playlist_id' is None, use Playlist associated with Telegram user \
+        from chat with ID 'chat_id'. As we don't track version control, return value from addition operation is not returned.
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+            tracks (list of strings): Tracks URI to be added to Playlist.
+            playlist_id (int) (OPTIONAL): ID of Spotify Playlist to remove tracks from
+
+        Raises:
+            NotLoggedInException: Raised if Telegram User with chat_id is not logged in (registered on DB)
+            TokenRequestException: Raised when there was some error while getting Spotify Acess token from the Spotify endpoint
+            RedisError: Raised if there was some internal Redis error while getting the acess token or the Spotify's User ID
+            SpotifyOperationException: Raised when a Spotify Request has failed
+
+        """
+
+        try:
+            self.__add_or_delete_tracks__(chat_id, tracks, 'POST', playlist_id)
+        except:
+            raise
+
+    def delete_tracks(self, chat_id, tracks, playlist_id=None):
+        """ Delete tracks from a Spotify Playlist. If parameter 'playlist_id' is None, use Playlist associated with Telegram user \
+        from chat with ID 'chat_id'. As we don't track version control, return value from deletion operation is not returned.
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+            tracks (list of strings): Tracks URI to be added to Playlist.
+            playlist_id (int) (OPTIONAL): ID of Spotify Playlist to remove tracks from
+
+        Raises:
+            NotLoggedInException: Raised if Telegram User with chat_id is not logged in (registered on DB)
+            TokenRequestException: Raised when there was some error while getting Spotify Acess token from the Spotify endpoint
+            RedisError: Raised if there was some internal Redis error while getting the acess token or the Spotify's User ID
+            SpotifyOperationException: Raised when a Spotify Request has failed
+        """
+
+        try:
+            self.__add_or_delete_tracks__(chat_id, tracks, 'DELETE', playlist_id)
+        except:
+            raise
+
+
     # ! NOTE: Spotify can only send, at once, 100 objects to be deleted from playlist
     def delete_all_tracks(self, chat_id, playlist_id=None):
-        """ Deletes all tracks from a playlist (if argument 'playlist_id' is specified) or from
-        the playlist associated with user 'chat_id'
+        """ Deletes all tracks from a Spotify Playlist. If parameter 'playlist_id' is None, use Playlist associated with Telegram user \
+        from chat with ID 'chat_id'. As we don't track version control, return value from deletion operation is not returned.
 
         Args:
             chat_id (int or string): ID of Telegram Bot chat
@@ -310,6 +468,7 @@ class SpotifyEndpointAcess:
             SpotifyOperationException: Raised when a Spotify Request has failed
 
         """
+
         try:
             acess_token = self.__get_acess_token_valid__(chat_id)
             if playlist_id is None:
@@ -317,48 +476,13 @@ class SpotifyEndpointAcess:
         except:
             raise
 
-
-        header = {
-            'Authorization': 'Bearer ' + acess_token,
-            'Content-Type': 'application/json'
-        }
-
-        url = self.spotify_url_list['playlist']['tracksURL'].format(playlist_id = playlist_id)
-
-        # Test if we can get all tracks
         try:
             all_tracks = self.get_all_tracks(chat_id, playlist_id)
-        except SpotifyOperationException:
+            self.delete_tracks(chat_id, all_tracks, playlist_id)
+        except:
             raise
 
-        paged_all_tracks = SpotifyEndpointAcess.__split_list_evenly__(all_tracks, 100)
 
-        # Iniciate request without any data (filled during loop throught pages on try block below)
-        request = SpotifyRequest('DELETE', url, headers=header, json=None)
-
-        # Encapsulates set of Spotify Opearions that can cause an Exception (SpotifyOperationException)
-        # If it occurs between pages, it should be noted.
-        try:
-            page = 0 # Keep tabs on page
-
-            # looping throught the pages of music tracks, changing what data is sent
-            for page_tracks in paged_all_tracks:
-                new_json = {
-                    "tracks": page_tracks
-                }
-
-                request.change_json(new_json)
-                response = request.send()
-                page += 1
-
-        # TODO: Not best practice. Maybe change later
-        except SpotifyOperationException as e:
-            message = ""
-            if page != 0:
-                message = """ Warning: Delete operation occured in middle of total removal of playlist """
-                LOGGER.warning(message)
-
-            raise SpotifyOperationException(message)
 
 
     # ! NOTE: All tracks are returned; No paging on return object
@@ -376,6 +500,9 @@ class SpotifyEndpointAcess:
             RedisError: Raised if there was some internal Redis error while getting the acess token or the Spotify's User ID
             SpotifyOperationException: Raised when a Spotify Request has failed
 
+        Returns:
+            List of string representing Spotify URIs for tracks
+        (see https://developer.spotify.com/documentation/web-api/#spotify-uris-and-ids)
         """
 
         try:
@@ -404,7 +531,7 @@ class SpotifyEndpointAcess:
             for response in request.get_next_page():
                 response_tracks = response.json().get('items') # TODO: This can cause uncaught exception?
                 for track in response_tracks:
-                    all_tracks.append({"uri": track["track"]["uri"]})
+                    all_tracks.append(track["track"]["uri"])
 
         except SpotifyOperationException:
             raise

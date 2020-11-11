@@ -57,6 +57,7 @@ def load_handlers(dispatcher):
 
     create_playlist = CommandHandler('create_playlist', BOT_MANAGER.create_playlist)
     get_playlist = CommandHandler('get_playlist', BOT_MANAGER.get_playlist)
+    add_music = CommandHandler('add_music', BOT_MANAGER.add_music)
     clean_playlist = CommandHandler('clean_playlist', BOT_MANAGER.clean_playlist)
     test_api_handler = CommandHandler('test', BOT_MANAGER.test_api)
 
@@ -67,6 +68,8 @@ def load_handlers(dispatcher):
 
     dispatcher.add_handler(create_playlist)
     dispatcher.add_handler(get_playlist)
+    dispatcher.add_handler(add_music)
+
     dispatcher.add_handler(clean_playlist)
     dispatcher.add_handler(test_api_handler)
 
