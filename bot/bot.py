@@ -5,8 +5,11 @@ import yaml
 import sys
 
 from bot_handlers import BotHandlerManager
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.ext import Updater, CommandHandler, MessageHandler, ConversationHandler, PollHandler, PollAnswerHandler, Filters
 
+ACOUSTICNESS, DANCEABILITY, ENERGY, INSTRUMENTALNESS, LIVENESS, LOUDNESS, POPULARITY, SPEECHINESS, VALANCE = range(9)
+
+global updater
 
 def check_config_vars():
     """
@@ -52,14 +55,28 @@ def check_config_vars():
 
 def load_handlers(dispatcher):
     """ Load Telegram Bot Handlers """
-    start_handler = CommandHandler('start', BOT_MANAGER.start)
-    login_handler = CommandHandler('login', BOT_MANAGER.login)
+    start_handler = CommandHandler('start', BOT_MANAGER.start, filters=~Filters.update.edited_message)
+    login_handler = CommandHandler('login', BOT_MANAGER.login, filters=~Filters.update.edited_message)
 
-    create_playlist = CommandHandler('create_playlist', BOT_MANAGER.create_playlist)
-    get_playlist = CommandHandler('get_playlist', BOT_MANAGER.get_playlist)
-    add_music = CommandHandler('add_music', BOT_MANAGER.add_music)
-    clean_playlist = CommandHandler('clean_playlist', BOT_MANAGER.clean_playlist)
-    test_api_handler = CommandHandler('test', BOT_MANAGER.test_api)
+    create_playlist = CommandHandler('create_playlist', BOT_MANAGER.create_playlist, filters=~Filters.update.edited_message)
+    get_playlist = CommandHandler('get_playlist', BOT_MANAGER.get_playlist, filters=~Filters.update.edited_message)
+    add_music = CommandHandler('add_music', BOT_MANAGER.add_music, filters=~Filters.update.edited_message)
+    clean_playlist = CommandHandler('clean_playlist', BOT_MANAGER.clean_playlist, filters=~Filters.update.edited_message)
+    test_api_handler = CommandHandler('test', BOT_MANAGER.test_api, filters=~Filters.update.edited_message)
+
+    start_survey_handler = CommandHandler('start_survey', BOT_MANAGER.start_survey, filters=~Filters.update.edited_message)
+    receive_poll_handler = PollAnswerHandler(BOT_MANAGER.receive_poll_answer)
+
+
+    '''
+    survey_handler = ConversationHandler(
+        entry_points=[CommandHandler('start_survey', BOT_MANAGER.start_survey, filters=~Filters.update.edited_message)],
+        states={
+            ACOUSTICNESS: [PollHandler(BOT_MANAGER.receive_poll_answer)],
+        },
+        fallbacks=[CommandHandler('cancel', BOT_MANAGER.cancel)],
+    )
+    '''
 
     echo_handler = MessageHandler(Filters.text, BOT_MANAGER.echo)
 
@@ -73,7 +90,22 @@ def load_handlers(dispatcher):
     dispatcher.add_handler(clean_playlist)
     dispatcher.add_handler(test_api_handler)
 
+    dispatcher.add_handler(start_survey_handler)
+    dispatcher.add_handler(receive_poll_handler)
+
+
+    #dispatcher.add_handler(CommandHandler('poll', BOT_MANAGER.poll))
+    #dispatcher.add_handler(PollAnswerHandler(BOT_MANAGER.receive_poll_answer))
+
+
+
+
     dispatcher.add_handler(echo_handler)
+
+
+
+
+
 
 def start_bot():
     """ Start point for bot """

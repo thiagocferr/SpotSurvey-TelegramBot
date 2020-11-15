@@ -17,8 +17,10 @@ from redis import RedisError
 
 from redis_operations import RedisAcess, AlreadyLoggedInException, NotLoggedInException, TokenRequestException # ! Local module
 from spotify_endpoint_acess import SpotifyEndpointAcess, SpotifyOperationException # ! Local module
+from survey import SurveyManager # ! Local module
 
 LOGGER = logging.getLogger(__name__)
+#ACOUSTICNESS, DANCEABILITY, ENERGY, INSTRUMENTALNESS, LIVENESS, LOUDNESS, POPULARITY, SPEECHINESS, VALANCE = range(9)
 
 class BotHandlerManager:
 
@@ -30,6 +32,20 @@ class BotHandlerManager:
         self.spotify_endpoint_acess = SpotifyEndpointAcess(self.redis_instance)
         with open('config.yaml', 'r') as f:
             self.config_file = yaml.safe_load(f)
+
+        self.__load_spotify_survey__()
+
+    def __load_spotify_survey__(self):
+        """ Loads the Spotify Survey from file 'spotify_survey.yaml' """
+
+        with open('spotify_survey.yaml', 'r') as f:
+            spotify_survey_file = yaml.safe_load(f)
+
+        questions_list = spotify_survey_file['questions']
+        options_list = spotify_survey_file['options']
+
+        self.spotify_survey = SurveyManager(questions_list, options_list)
+
 
     def start(self, update, context):
         """ '/start' command """
@@ -97,7 +113,7 @@ class BotHandlerManager:
 
             # Create playlist. If no error, link it to telegram user
             try:
-                playlist_id = self.spotify_endpoint_acess.create_playlist(chat_id, playlist_name, playlist_description)
+                self.spotify_endpoint_acess.create_playlist(chat_id, playlist_name, playlist_description)
             except:
                 LOGGER.exception('')
                 context.bot.send_message(
@@ -148,3 +164,58 @@ class BotHandlerManager:
         """ A test function ('/test'). Gets the name of the Spotify account user """
         info = self.spotify_endpoint_acess.test(update.effective_chat.id)
         context.bot.send_message(chat_id = update.effective_chat.id, text = info.get('display_name'))
+
+    def __send_spotify_poll__(self, chat_id, context):
+
+        question, options = self.spotify_survey.get_poll_info()
+
+        message = context.bot.send_poll(
+            chat_id,
+            question,
+            options,
+            is_anonymous=False
+        )
+        # Save some info about the poll the bot_data for later use in receive_poll_answer
+        payload = {
+            message.poll.id: {
+                "options": options,
+                "message_id": message.message_id,
+                "chat_id": chat_id,
+                "answers": 0,
+            }
+        }
+        context.bot_data.update(payload)
+
+    def start_survey(self, update, context):
+        self.__send_spotify_poll__(update.effective_chat.id, context)
+
+
+    def receive_poll_answer(self, update, context):
+        """Summarize a users poll vote"""
+        answer = update.poll_answer
+        poll_id = answer.poll_id
+
+        # answer.option_ids contains list of selected optins. As the polls of this bot can oly have one element, use it
+        user_answer = answer.option_ids[0]
+
+        try:
+            #options = context.bot_data[poll_id]["options"]
+            chat_id =  context.bot_data[poll_id]["chat_id"]
+        # this means this poll answer update is from an old poll, we can't do our answering then
+        except KeyError:
+            return
+
+        # Get the attribute associated with the received poll and what value was selected by the user
+        # (obs: selected value no as the string select, but as an object representing programmatically what the user's
+        # choice represents)
+        attribute, values = self.spotify_survey.get_curr_attribute_values(user_answer)
+        self.redis_instance.register_survey_attribute(chat_id, attribute, values)
+
+        #selected_options = answer.option_ids
+
+        # if this was the last question, stop sending polls
+        if self.spotify_survey.is_end():
+            return
+
+        self.spotify_survey.go_next_poll()
+        self.__send_spotify_poll__(chat_id, context)

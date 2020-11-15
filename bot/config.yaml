@@ -5,16 +5,20 @@ spotify:
         loginURL: 'https://accounts.spotify.com/authorize?'
         tokenURL: 'https://accounts.spotify.com/api/token'
         userURL: 'https://api.spotify.com/v1/me'
-        redirectURL: 'https://spot-survey-server5.loca.lt/callback' # ! Needs to be registered on Spotify API Dashboard!
+        redirectURL: 'https://spot-survey-server6.loca.lt/callback' # ! Needs to be registered on Spotify API Dashboard!
         playlist:
             userURL: 'https://api.spotify.com/v1/users/{user_id}/playlists'
             currentUserURL: 'https://api.spotify.com/v1/me/playlists'
             tracksURL: 'https://api.spotify.com/v1/playlists/{playlist_id}/tracks'
+        recommendationURL: 'https://api.spotify.com/v1/recommendations'
 
     acessScope: 'user-read-private playlist-modify-private playlist-read-private user-top-read user-read-recently-played'
     playlistName: "SpotSurveyBot's playlist"
     playlistDescription: "A playlists created by the Telegram Bot SpotSurveyBot"
 
 telegram:
-    webhookURL: 'https://spot-survey-bot6.loca.lt/'
+    webhookURL: 'https://spot-survey-bot7.loca.lt/'
 
+
+
+#googleForms: 'https://docs.google.com/forms/d/e/1FAIpQLSdT3Ksx8Em4jal1glaivSrDksiSECLiYzB7saT2NbH6Y9Y71Q/viewform?usp=pp_url&entry.366340186={chat_id}'

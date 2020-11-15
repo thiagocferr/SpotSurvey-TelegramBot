@@ -3,6 +3,7 @@ import base64
 import yaml
 import os
 import logging
+import json
 
 from redis import Redis, RedisError
 
@@ -122,7 +123,7 @@ class RedisAcess:
 
         return return_params
 
-    def register_spotify_tokens(self, chat_id, hash):
+    def register_spotify_tokens(self, chat_id, db_hash):
 
         """
         Register Spotify tokens on Redis DB by getting Authentication token from memcache (Redis database 1)
@@ -145,11 +146,11 @@ class RedisAcess:
         """
 
         # Get real token from memcache
-        spot_code = self.memcache.get(hash)
+        spot_code = self.memcache.get(db_hash)
         if not spot_code:
-            LOGGER.error(f'Hash {hash} was not found on memcache database')
-            raise ValueError(f'Invalid hash: Hash {hash} not found')
-        self.memcache.delete(hash)
+            LOGGER.error(f'Hash {db_hash} was not found on memcache database')
+            raise ValueError(f'Invalid hash: Hash {db_hash} not found')
+        self.memcache.delete(db_hash)
 
         # Check if user already has been registered on DB
         if self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'refresh_token') is not None:
@@ -308,6 +309,43 @@ class RedisAcess:
         else:
             return b_playlist_id.decode('utf-8')
 
+    def register_survey_attribute(self, chat_id, attribute, values):
+        """
+        Used to store information about what the user 'chat_id' in one of the Telegram polls during the survey process \
+            (getting user preferences about music for generating recommendation of musics). For the sake of reducing the number of \
+            Redis keys needed to store all attributes spawned from the survey, the values associated with user (for now, min value, max value and
+            possibly a precise value) will be store as a string. The get process wil convert it back to a dict.
 
+            Args:
+                chat_id (int or string): ID of Telegram Bot chat
+                attribute (string): Name of the attribute to be saved as key on the Redis hash of format 'user:[user_id]:attributes'
+                values (dict): Values associated with attribute. This be converted into a string and saved on DB as the value for key 'user:[user_id]:attributes'
+        """
 
+        try:
+            self.redis.hset(name = 'user' + ':' + str(chat_id) + ':' + 'attributes', key = attribute, value = json.dumps(values))
+        except:
+            raise
+
+    def get_survey_attribute(self, chat_id, attribute):
+        """
+        Get attribute values (user's preference of music) registered during survey process
+
+            Args:
+                chat_id (int or string): ID of Telegram Bot chat
+                attribute (string): Name of the attribute to be saved as key on the Redis hash of format 'user:[user_id]:attributes'
+
+            Returns:
+                Dict with values stored on DB
+        """
+
+        try:
+            b_attribute_val = self.redis.hget(name = 'user' + ':' + str(chat_id) + ':' + 'attributes', key = attribute)
+        except:
+            raise
+
+        if b_attribute_val is None:
+            return b_attribute_val
+        else:
+            return json.loads(b_attribute_val.decode('utf-8'))
 

@@ -3,3 +3,6 @@ requests
 redis
 python-dotenv
 pyyaml
+google_spreadsheet
+google-auth-oauthlib
+pandas

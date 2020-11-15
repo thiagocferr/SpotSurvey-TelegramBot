@@ -278,7 +278,7 @@ class SpotifyEndpointAcess:
 
         try:
             self.redis_instance.register_spotify_playlist_id(chat_id, playlist_id)
-        except RedisAcess:
+        except RedisError:
             raise
 
     def playlist_already_registered(self, chat_id):
@@ -537,6 +537,30 @@ class SpotifyEndpointAcess:
             raise
 
         return all_tracks
+
+    def get_recommendations(self, chat_id):
+        try:
+            acess_token = self.__get_acess_token_valid__(chat_id)
+        except:
+            raise
+
+        header = {
+            'Authorization': 'Bearer ' + acess_token,
+        }
+
+        # TODO: CHANGE FOR USER ANSWER
+        local_atributtes = {
+            'acousticness': {
+                'min': 0.0,
+                'target': 0.5,
+                'max': 1.0
+            }
+        }
+
+        query = {
+            'limit': 20,
+            'market': 'from_token',
+        }
 
     def test(self, chat_id):
         try:

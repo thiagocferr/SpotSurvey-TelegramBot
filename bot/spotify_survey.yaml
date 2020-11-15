@@ -1,0 +1,80 @@
+
+questions:
+    - {text: 'Acousticness Level (Confidence of music being acoustic)', options_set: 'set1', attribute: 'acousticness_level'}
+    - {text: 'Acousticness Range (will be ignored if Acousticness Level was set)', options_set: 'set2', attribute: 'acousticness_range'}
+
+    - {text: 'Danceability Level (How great the music is for dancing)', options_set: 'set1', attribute: 'danceability_level'}
+    - {text: 'Danceability Range (will be ignored if Danceability Level was set)', options_set: 'set2', attribute: 'danceability_range'}
+
+    - {text: 'Energy Level (Measure of music intensity and activity)', options_set: 'set1', attribute: 'energy_level'}
+    - {text: 'Energy Range (will be ignored if Energy Level was set)', options_set: 'set2', attribute: 'energy_range'}
+
+    - {text: 'Instrumentalness Level (How likely it is to have instrumental tracks)', options_set: 'set3', attribute: 'instrumentalness_level'}
+    - {text: 'Instrumentalness Range (will be ignored if Instrumentalness Level was set)', options_set: 'set4', attribute: 'instrumentalness_range'}
+
+    - {text: 'Liveness Level (Confidence on the presence of an audience, or live music)', options_set: 'set1', attribute: 'liveness_level'}
+
+    - {text: 'Popularity Level (How popular a music is)', options_set: 'set1', attribute: 'popularity_level'}
+    - {text: 'Popularity Range (will be ignored if Popularity Level was set)', options_set: 'set2', attribute: 'popularity_range'}
+
+    - {text: 'Speechiness Level (How much spoke words is present on track)', options_set: 'set5', attribute: 'speechiness_level'}
+
+    - {text: 'Positiveness Level (How much positive a music is)', options_set: 'set1', attribute: 'valence_level'}
+    - {text: 'Positiveness Range (will be ignored if Positiveness Level was set)', options_set: 'set2', attribute: 'valance_range'}
+
+    - {text: 'Music Duration', options_set: 'duration', attribute: 'duration'}
+
+
+options:
+    set1:
+        - {text: 'Ignore Level'}
+        - {text: 'Zero', target_val: 0.0}
+        - {text: 'Very low', target_val: 0.1}
+        - {text: 'Low', target_val: 0.3}
+        - {text: 'Medium', target_val: 0.5}
+        - {text: 'High', target_val: 0.7}
+        - {text: 'Very High', target_val: 0.9}
+        - {text: 'Maximum', target_val: 1.0}
+
+    set2:
+        - {text: 'Ignore interval'}
+        - {text: 'Low (0 - 25)', min_val: 0, max_val: 0.25}
+        - {text: 'Intermediary Low (25 - 50)', min_val: 0.25, max_val: 0.5}
+        - {text: 'Intermediary High (50 - 75)', min_val: 0.5, max_val: 0.75}
+        - {text: 'High (75 - 100)', min_val: 0.75, max_val: 1.0}
+        - {text: 'Lower Half (0 - 50)', min_val: 0, max_val: 0.5}
+        - {text: 'Intermediary (25 - 75)', min_val: 0.25, max_val: 0.75}
+        - {text: 'Higher Half (50 - 100)', min_val: 0.5, max_val: 1.0}
+        - {text: 'Exclude Higher (0 - 75)', min_val: 0.0, max_val: 0.75}
+        - {text: 'Exclude Lower (25 - 100)', min_val: 0.25, max_val: 1.0}
+
+    set3:
+        - {text: 'Ignore Level'}
+        - {text: 'Should not have instrumental tracks', target_val: 0.0}
+        - {text: 'Very unlikely instrumental tracks', target_val: 0.1}
+        - {text: 'Unlikely instrumental tracks', target_val: 0.3}
+        - {text: 'Low confidence for instrumental tracks', target_val: 0.5}
+        - {text: 'High confidence for instrumental tracks', target_val: 0.75}
+        - {text: 'Very high confidence for instrumental tracks', target_val: 0.9}
+        - {text: 'Maximum confidence for instrumental tracks', target_val: 1.0}
+
+    set4:
+        - {text: 'Ignore interval'}
+        - {text: 'Musics probably with vocals', min_val: 0.0, max_val: 0.3}
+        - {text: 'Musics probably accoustic', min_val: 0.75, max_val: 1.0}
+        - {text: 'Musics with both', min_val: 0.25, max_val: 0.75}
+
+    set5:
+        - {text: 'Ignore Level'}
+        - {text: 'Almost no spoken words', target_val: 0.0}
+        - {text: 'A little bit of spoken words', target_val: 0.15}
+        - {text: 'An avarage music', target_val: 0.33}
+        - {text: 'Both music and speech', target_val: 0.5}
+
+    duration:
+        - {text: 'Ignore duration'}
+        - {text: 'Short (up to 2 min)', max_val: 120000}
+        - {text: 'Average (Up to 3 min)', max_val: 180000}
+        - {text: 'A bit longer (Up to 4 min)', max_val: 240000}
+        - {text: 'Long (Up to 5 min)', max_val: 300000}
+        - {text: 'Very long (6 min +)', min_val: 360000}
