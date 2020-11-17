@@ -40,7 +40,6 @@ class NotLoggedInException(Exception):
 class TokenRequestException(Exception):
     """ Exception class used to represent some kind of internal error during processo of obtaining
     user tokens from the Spotify API """
-    pass
 
 class RedisAcess:
     """ Class that gives acess to al Redis databases and functions related to getting and setting values """
@@ -148,8 +147,8 @@ class RedisAcess:
         # Get real token from memcache
         spot_code = self.memcache.get(db_hash)
         if not spot_code:
-            LOGGER.error(f'Hash {db_hash} was not found on memcache database')
-            raise ValueError(f'Invalid hash: Hash {db_hash} not found')
+            LOGGER.error(""" Hash {db_hash} was not found on memcache database """.format({db_hash}))
+            raise ValueError(""" Invalid hash: Hash {db_hash} not found """.format({db_hash}))
         self.memcache.delete(db_hash)
 
         # Check if user already has been registered on DB
@@ -163,10 +162,7 @@ class RedisAcess:
             "grant_type": "authorization_code",
         }
 
-        try:
-            response_params = self.__user_token_request_process__(auth_form, is_refresh=False)
-        except:
-            raise
+        response_params = self.__user_token_request_process__(auth_form, is_refresh=False)
 
         acess_token = response_params['acess_token']
         refresh_token = response_params['refresh_token']
@@ -178,6 +174,7 @@ class RedisAcess:
             self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'acess_token', value = acess_token, ex = expires_in)
             self.redis.hset(name = 'user' + ':' + str(chat_id), key = 'refresh_token', value = refresh_token)
         except RedisError:
+            LOGGER.error(""" Could not register user '{chat_id}' Spotify Tokens on Redis DB""")
             raise
 
 
@@ -209,23 +206,36 @@ class RedisAcess:
                     "refresh_token": refresh_token.decode('utf-8')
                 }
 
-                try:
-                    response_params = self.__user_token_request_process__(refresh_form, is_refresh=True)
-                except:
-                    raise
+                response_params = self.__user_token_request_process__(refresh_form, is_refresh=True)
 
                 acess_token = response_params['acess_token']
                 expires_in = response_params['expires_in']
 
-                try:
-                    self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'acess_token', value = acess_token, ex = expires_in)
-                except:
-                    raise
+                self.redis.set(name = 'user' + ':' + str(chat_id) + ':' + 'acess_token', value = acess_token, ex = expires_in)
         else:
             # If entered both if statments, acess_token is a string. Else, it's bytes (from the get operation on the Redis DB)
             acess_token = acess_token.decode('utf-8')
 
         return acess_token
+
+    def is_user_logged_in(self, chat_id):
+        """
+        Checks if user 'chat_id' is logged in (by checking if we have a refresh token)
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+
+        Returns:
+            If user is logged in on Bot (bool)
+
+        Raises:
+            RedisError: Raised if there was some internal Redis error
+        """
+
+        refresh_token = self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'refresh_token')
+        if refresh_token is None:
+            return False
+        return True
 
     def register_spotify_user_id(self, chat_id, user_id):
         """
@@ -238,10 +248,8 @@ class RedisAcess:
         Raises:
             RedisError: Raised if there was some internal Redis error
         """
-        try:
-            self.redis.hset(name = 'user' + ':' + str(chat_id), key = 'user_id', value = user_id)
-        except:
-            raise
+
+        self.redis.hset(name = 'user' + ':' + str(chat_id), key = 'user_id', value = user_id)
 
 
     def get_spotify_user_id(self, chat_id):
@@ -258,15 +266,11 @@ class RedisAcess:
             RedisError: Raised if there was some internal Redis error
         """
 
-        try:
-            b_user_id = self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'user_id')
-        except:
-            raise
+        b_user_id = self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'user_id')
 
         if b_user_id is None:
             return b_user_id
-        else:
-            return b_user_id.decode('utf-8')
+        return b_user_id.decode('utf-8')
 
     def register_spotify_playlist_id(self, chat_id, playlist_id):
         """
@@ -280,10 +284,7 @@ class RedisAcess:
             RedisError: Raised if there was some internal Redis error
         """
 
-        try:
-            self.redis.hset(name = 'user' + ':' + str(chat_id), key = 'playlist_id', value = playlist_id)
-        except:
-            raise
+        self.redis.hset(name = 'user' + ':' + str(chat_id), key = 'playlist_id', value = playlist_id)
 
     def get_spotify_playlist_id(self, chat_id):
         """
@@ -299,15 +300,11 @@ class RedisAcess:
             RedisError: Raised if there was some internal Redis error
         """
 
-        try:
-            b_playlist_id = self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'playlist_id')
-        except:
-            raise
+        b_playlist_id = self.redis.hget(name = 'user' + ':' + str(chat_id), key = 'playlist_id')
 
         if b_playlist_id is None:
             return b_playlist_id
-        else:
-            return b_playlist_id.decode('utf-8')
+        return b_playlist_id.decode('utf-8')
 
     def register_survey_attribute(self, chat_id, attribute, values):
         """
@@ -316,36 +313,42 @@ class RedisAcess:
             Redis keys needed to store all attributes spawned from the survey, the values associated with user (for now, min value, max value and
             possibly a precise value) will be store as a string. The get process wil convert it back to a dict.
 
-            Args:
-                chat_id (int or string): ID of Telegram Bot chat
-                attribute (string): Name of the attribute to be saved as key on the Redis hash of format 'user:[user_id]:attributes'
-                values (dict): Values associated with attribute. This be converted into a string and saved on DB as the value for key 'user:[user_id]:attributes'
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+            attribute (string): Name of the attribute to be saved as key on the Redis hash of format 'user:[user_id]:attributes'
+            values (dict): Values associated with attribute. This will be converted into a string and saved on DB as the value for key
+                'user:[user_id]:attributes'
+
+        Raises:
+            RedisError: Raised if there was some internal Redis error
         """
 
-        try:
-            self.redis.hset(name = 'user' + ':' + str(chat_id) + ':' + 'attributes', key = attribute, value = json.dumps(values))
-        except:
-            raise
+        self.redis.hset(name = 'user' + ':' + str(chat_id) + ':' + 'attributes', key = attribute, value = json.dumps(values))
 
     def get_survey_attribute(self, chat_id, attribute):
         """
         Get attribute values (user's preference of music) registered during survey process
 
-            Args:
-                chat_id (int or string): ID of Telegram Bot chat
-                attribute (string): Name of the attribute to be saved as key on the Redis hash of format 'user:[user_id]:attributes'
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+            attribute (string): Name of the attribute to be saved as key on the Redis hash of format 'user:[user_id]:attributes'
 
-            Returns:
-                Dict with values stored on DB
+        Returns:
+            Dict with values stored on DB
+
+        Raises:
+                RedisError: Raised if there was some internal Redis error
         """
 
-        try:
-            b_attribute_val = self.redis.hget(name = 'user' + ':' + str(chat_id) + ':' + 'attributes', key = attribute)
-        except:
-            raise
+        b_attribute_val = self.redis.hget(name = 'user' + ':' + str(chat_id) + ':' + 'attributes', key = attribute)
 
         if b_attribute_val is None:
             return b_attribute_val
-        else:
-            return json.loads(b_attribute_val.decode('utf-8'))
+        return json.loads(b_attribute_val.decode('utf-8'))
+
+    def delete_user(self, chat_id):
+        self.redis.delete('user' + ':' + str(chat_id) + ':' + 'attributes')
+        self.redis.delete('user' + ':' + str(chat_id) + ':' + 'acess_token')
+
+        self.redis.delete('user' + ':' + str(chat_id))
 

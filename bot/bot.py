@@ -2,12 +2,9 @@ import logging
 import os
 import dotenv
 import yaml
-import sys
 
 from bot_handlers import BotHandlerManager
-from telegram.ext import Updater, CommandHandler, MessageHandler, ConversationHandler, PollHandler, PollAnswerHandler, Filters
-
-ACOUSTICNESS, DANCEABILITY, ENERGY, INSTRUMENTALNESS, LIVENESS, LOUDNESS, POPULARITY, SPEECHINESS, VALANCE = range(9)
+from telegram.ext import Updater, CommandHandler, MessageHandler, PollAnswerHandler, Filters
 
 global updater
 
@@ -39,9 +36,9 @@ def check_config_vars():
 
         if not os.environ.get('SPOTIFY_CLIENT_SECRECT'):
             raise ValueError('No Spotify Client Secret found as an environment variable!')
-    except yaml.YAMLError as yml:
+    except yaml.YAMLError:
         message = 'Error parsing configuration file!'
-    except KeyError as k:
+    except KeyError:
         message = 'Critical configuration field not found!'
     except ValueError as v:
         message = str(v)
@@ -67,16 +64,10 @@ def load_handlers(dispatcher):
     start_survey_handler = CommandHandler('start_survey', BOT_MANAGER.start_survey, filters=~Filters.update.edited_message)
     receive_poll_handler = PollAnswerHandler(BOT_MANAGER.receive_poll_answer)
 
+    get_recommendations_handler = CommandHandler('get_recommendations', BOT_MANAGER.get_recommendations, filters=~Filters.update.edited_message)
 
-    '''
-    survey_handler = ConversationHandler(
-        entry_points=[CommandHandler('start_survey', BOT_MANAGER.start_survey, filters=~Filters.update.edited_message)],
-        states={
-            ACOUSTICNESS: [PollHandler(BOT_MANAGER.receive_poll_answer)],
-        },
-        fallbacks=[CommandHandler('cancel', BOT_MANAGER.cancel)],
-    )
-    '''
+    loggout_handler = CommandHandler('logout', BOT_MANAGER.logout, filters=~Filters.update.edited_message)
+
 
     echo_handler = MessageHandler(Filters.text, BOT_MANAGER.echo)
 
@@ -92,6 +83,10 @@ def load_handlers(dispatcher):
 
     dispatcher.add_handler(start_survey_handler)
     dispatcher.add_handler(receive_poll_handler)
+
+    dispatcher.add_handler(get_recommendations_handler)
+
+    dispatcher.add_handler(loggout_handler)
 
 
     #dispatcher.add_handler(CommandHandler('poll', BOT_MANAGER.poll))

@@ -1,4 +1,3 @@
-import json
 
 class SurveyManager:
     """
@@ -39,8 +38,7 @@ class SurveyManager:
 
     def get_poll_info(self):
         """
-        Get the question and its options of the next step of the survey. IMPORTANT: calling this method advances the survey to the next step \
-        (next poll variables), so only call it when done with a poll
+        Get the question and its options of the current step of the survey
 
         Returns:
             tuple(string, list), where 'string' is the question to be asked on the next poll and 'list' is a list of string with the corresponding options that can be select by the user
@@ -69,14 +67,30 @@ class SurveyManager:
         """
         return self.current_index == len(self.questions) - 1
 
-    def go_next_poll(self):
-        """ Go to the next state of the survey (internal pointers to the next question) """
-        self.current_index += 1
+    def go_next_poll(self, number_of_skips=0):
+        """
+        Go to the next state of the survey (internal pointers to the next question). Can be set to jump a number of questions
+
+        Args:
+            number_of_skips(int): Number of questions to skip
+
+        """
+        self.current_index += (1 + number_of_skips)
+
+    def get_skip_count(self):
+        """
+        If the current question dict has an attribute specifying the number of questions to be skiped if an answer was selected (key 'skip_if_set'), return this number. If a key with this name doesn't exist, return 0
+
+        Returns:
+            Number of questions (from the current question) to skip
+        """
+        return self.questions[self.current_index].get('skip_if_set', 0)
+
 
 
     def get_curr_attribute_values(self, user_selected_field=None):
         """
-        Get which attributed the current poll referes to and, given which option the user select, values associated with this option
+        Get which attribute the current poll referes to and, given which option the user select, what values are associated with this option
 
         Args:
             user_selected_field (int): An integer representing which option of the current poll was chosen by the user.
@@ -111,6 +125,8 @@ class SurveyManager:
 
 
     def reset_survey(self):
+        """ Reset the SurveyManager object to the first question of the survey """
+
         self.current_index = 0
 
 

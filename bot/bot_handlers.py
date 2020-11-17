@@ -4,15 +4,11 @@ This file contains all handler functions that available to the bot (and auxiliar
 They are used primarely as callback functions
 """
 
-import string, secrets
-import requests
-import os
 import yaml
 import logging
 import time
 import json
 
-from urllib.parse import urljoin, urlencode
 from redis import RedisError
 
 from redis_operations import RedisAcess, AlreadyLoggedInException, NotLoggedInException, TokenRequestException # ! Local module
@@ -20,7 +16,6 @@ from spotify_endpoint_acess import SpotifyEndpointAcess, SpotifyOperationExcepti
 from survey import SurveyManager # ! Local module
 
 LOGGER = logging.getLogger(__name__)
-#ACOUSTICNESS, DANCEABILITY, ENERGY, INSTRUMENTALNESS, LIVENESS, LOUDNESS, POPULARITY, SPEECHINESS, VALANCE = range(9)
 
 class BotHandlerManager:
 
@@ -127,13 +122,15 @@ class BotHandlerManager:
                     text = ''' Playlist created! '''
                 )
 
+    # ! Test function?
     def get_playlist(self, update, context):
 
-        all_tracks = self.spotify_endpoint_acess.get_all_tracks(update.effective_chat.id)
+        all_tracks = self.spotify_endpoint_acess.get_all_tracks(update.effective_chat.id, '4fGf4U5ZxmKTJLViZBz5Uq')
         all_tracks_parsed = json.dumps(all_tracks, separators=(',', ':'))
 
         context.bot.send_message(chat_id=update.effective_chat.id, text=all_tracks_parsed)
 
+    # ! Needs restructuring!
     def clean_playlist(self, update, context):
 
         try:
@@ -144,28 +141,93 @@ class BotHandlerManager:
         else:
             context.bot.send_message(chat_id=update.effective_chat.id, text="Removed all tracks from playlist")
 
+    # ! Test function!
     def add_music(self, update, context):
         self.spotify_endpoint_acess.add_tracks(update.effective_chat.id, ['spotify:track:6rqhFgbbKwnb9MLmUQDhG6'])
         context.bot.send_message(chat_id=update.effective_chat.id, text="Music added!")
 
-
+    # ! Test function!
     def echo(self, update, context):
         """ Echoes what user says (not a command) """
         context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text)
-
 
     def login(self, update, context):
         """'/login' command. Makes user authentication from Spotify"""
         login_url = self.spotify_endpoint_acess.authorization_link()
         context.bot.send_message(chat_id=update.effective_chat.id, text=login_url)
 
-
+    # ! Test function!
     def test_api(self, update, context):
         """ A test function ('/test'). Gets the name of the Spotify account user """
-        info = self.spotify_endpoint_acess.test(update.effective_chat.id)
-        context.bot.send_message(chat_id = update.effective_chat.id, text = info.get('display_name'))
+        info = self.spotify_endpoint_acess.get_user_top_tracks(update.effective_chat.id, 5)
+        context.bot.send_message(chat_id = update.effective_chat.id, text = json.dumps(info))
 
-    def __send_spotify_poll__(self, chat_id, context):
+    def get_recommendations(self, update, context):
+        recommendation_list = self.spotify_endpoint_acess.get_recommendations(update.effective_chat.id)
+        context.bot.send_message(chat_id = update.effective_chat.id, text = json.dumps(recommendation_list))
+
+    def logout(self, update, context):
+
+        if not self.redis_instance.is_user_logged_in(update.effective_chat.id):
+
+            context.bot.send_message(
+                chat_id = update.effective_chat.id,
+                text = "You are not loged in"
+            )
+            return
+
+        self._send_logout_playlist_confirmation(update.effective_chat.id, context)
+        return
+
+    def _logout2(self, chat_id, context):
+        """
+        Second step of logout (after confirming if user wants to delete the associated playlisst or not)
+
+        Note: A better solution would be to wait for poll answer on original logout method. This is a temporary solution.
+        """
+
+        try:
+            self.redis_instance.delete_user(chat_id)
+        except RedisError:
+            context.bot.send_message(
+                chat_id = chat_id,
+                text = """Could not logout: Internal database error. Try again later."""
+            )
+
+            return
+
+        context.bot.send_message(
+            chat_id = chat_id,
+            text = """Successfuly loged out"""
+        )
+
+    def start_survey(self, update, context):
+        self._send_spotify_poll(update.effective_chat.id, context)
+
+
+    def _send_logout_playlist_confirmation(self, chat_id, context):
+        question = "Do you wish to remove the current SpotSurveyBot's playlist from account?"
+        options = ["Yes", "No"]
+
+        message = context.bot.send_poll(
+            chat_id,
+            question,
+            options,
+            is_anonymous=False
+        )
+
+        # Save some info about the poll the bot_data for later use in receive_poll_answer
+        payload = {
+            message.poll.id: {
+                "options": options,
+                "message_id": message.message_id,
+                "chat_id": chat_id,
+                "poll_type": "logout_playlist_removal"
+            }
+        }
+        context.bot_data.update(payload)
+
+    def _send_spotify_poll(self, chat_id, context):
 
         question, options = self.spotify_survey.get_poll_info()
 
@@ -181,17 +243,34 @@ class BotHandlerManager:
                 "options": options,
                 "message_id": message.message_id,
                 "chat_id": chat_id,
-                "answers": 0,
+                "poll_type": "spotify",
             }
         }
         context.bot_data.update(payload)
 
-    def start_survey(self, update, context):
-        self.__send_spotify_poll__(update.effective_chat.id, context)
-
 
     def receive_poll_answer(self, update, context):
-        """Summarize a users poll vote"""
+        """All received poll will pass through this function. Servers as rpouter for different kind of responses"""
+
+        answer = update.poll_answer
+        poll_id = answer.poll_id
+
+        # What kind of poll was received. Depends on the funtion that created the poll to send extra data through the bot context
+        poll_type = ''
+
+        try:
+            poll_type = context.bot_data[poll_id]["poll_type"]
+        except KeyError:
+            return
+
+        if poll_type == "spotify":
+            self._receive_spotify_poll_answer(update, context)
+        elif poll_type == "logout_playlist_removal":
+            self._receive_logout_playlist_confirmation_answer(update, context)
+
+
+
+    def _receive_logout_playlist_confirmation_answer(self, update, context):
         answer = update.poll_answer
         poll_id = answer.poll_id
 
@@ -199,23 +278,65 @@ class BotHandlerManager:
         user_answer = answer.option_ids[0]
 
         try:
-            #options = context.bot_data[poll_id]["options"]
             chat_id =  context.bot_data[poll_id]["chat_id"]
-        # this means this poll answer update is from an old poll, we can't do our answering then
+            options = context.bot_data[poll_id]["options"]
+        # this means this poll answer update is from an old poll
         except KeyError:
             return
 
+        if options[user_answer] == "Yes":
+            self.spotify_endpoint_acess.delete_playlist(chat_id)
+            context.bot.send_message(chat_id = chat_id, text = """ Deleting playlist... """)
+            time.sleep(1)
+
+        # Removing all user data from db
+        self._logout2(chat_id, context)
+
+
+
+    def _receive_spotify_poll_answer(self, update, context):
         # Get the attribute associated with the received poll and what value was selected by the user
         # (obs: selected value no as the string select, but as an object representing programmatically what the user's
         # choice represents)
+
+        answer = update.poll_answer
+        poll_id = answer.poll_id
+
+        # answer.option_ids contains list of selected optins. As the polls of this bot can oly have one element, use it
+        user_answer = answer.option_ids[0]
+
+        try:
+            chat_id =  context.bot_data[poll_id]["chat_id"]
+        # this means this poll answer update is from an old poll
+        except KeyError:
+            return
+
+        # Getting selected attribute and its set of values selected by the user
         attribute, values = self.spotify_survey.get_curr_attribute_values(user_answer)
         self.redis_instance.register_survey_attribute(chat_id, attribute, values)
 
-        #selected_options = answer.option_ids
-
-        # if this was the last question, stop sending polls
+        # if this was the last question of the survey, stop sending polls
         if self.spotify_survey.is_end():
             return
 
-        self.spotify_survey.go_next_poll()
-        self.__send_spotify_poll__(chat_id, context)
+        # Get the amount (if any) of questions to be skiped if some value was decided (on the current case,
+        # options that are not skiping setting a value, like options 'Ignore Level' or 'Ignore Range', that
+        # saves empty dicts on the DB)
+        skip_amount = 0
+        if len(values) > 0:
+            skip_amount = self.spotify_survey.get_skip_count()
+
+        self.spotify_survey.go_next_poll(skip_amount)
+        self._send_spotify_poll(chat_id, context)
+
+
+
+    def _is_update_spotify_survey_answer(self, update, context):
+        answer = update.poll_answer
+        poll_id = answer.poll_id
+
+        try:
+            return context.bot_data[poll_id]["is_spotify_survey"]
+        # this means this poll answer update is from an old poll
+        except KeyError:
+            return False
