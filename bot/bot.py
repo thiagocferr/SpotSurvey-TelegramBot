@@ -4,9 +4,17 @@ import dotenv
 import yaml
 
 from bot_handlers import BotHandlerManager
-from telegram.ext import Updater, CommandHandler, MessageHandler, PollAnswerHandler, Filters
+from telegram.ext import (
+    Updater, CommandHandler, MessageHandler,
+    ConversationHandler, CallbackQueryHandler,
+    PollAnswerHandler, Filters
+)
 
 global updater
+
+END_STATE = 0
+CONFIRM_LOGOUT, DELETE_USER = range(1, 3)
+SELECT_ARTISTS, SELECT_TRACKS = range (3, 5)
 
 def check_config_vars():
     """
@@ -55,18 +63,43 @@ def load_handlers(dispatcher):
     start_handler = CommandHandler('start', BOT_MANAGER.start, filters=~Filters.update.edited_message)
     login_handler = CommandHandler('login', BOT_MANAGER.login, filters=~Filters.update.edited_message)
 
-    create_playlist = CommandHandler('create_playlist', BOT_MANAGER.create_playlist, filters=~Filters.update.edited_message)
-    get_playlist = CommandHandler('get_playlist', BOT_MANAGER.get_playlist, filters=~Filters.update.edited_message)
-    add_music = CommandHandler('add_music', BOT_MANAGER.add_music, filters=~Filters.update.edited_message)
-    clean_playlist = CommandHandler('clean_playlist', BOT_MANAGER.clean_playlist, filters=~Filters.update.edited_message)
-    test_api_handler = CommandHandler('test', BOT_MANAGER.test_api, filters=~Filters.update.edited_message)
+    setup_handler = ConversationHandler (
+        entry_points=[CommandHandler('setup', BOT_MANAGER.setup)],
+        states={
+            SELECT_ARTISTS: [
+                CallbackQueryHandler(BOT_MANAGER.select_artists, pattern='^' + 'Start|Previous|Next|Tracks' + '$'),
+                MessageHandler(filters=Filters.text & Filters.regex('^\d{1,2} *(, *\d{1,2} *)*$'), callback=BOT_MANAGER.selected_artists), # Numbers separated by comma
+                CallbackQueryHandler(BOT_MANAGER.setup_done, pattern='^' + 'Done' + '$')
+            ],
+            SELECT_TRACKS: [
+                CallbackQueryHandler(BOT_MANAGER.select_tracks, pattern='^' + 'Previous|Next|Artists' + '$'),
+                MessageHandler(filters=Filters.text & Filters.regex('^\d{1,2} *(, *\d{1,2} *)*$'), callback=BOT_MANAGER.selected_tracks), # Numbers separated by comma]
+                CallbackQueryHandler(BOT_MANAGER.setup_done, pattern='^' + 'Done' + '$')
+            ]
+        },
+        fallbacks=[CallbackQueryHandler(BOT_MANAGER.stop_setup)]
+    )
 
     start_survey_handler = CommandHandler('start_survey', BOT_MANAGER.start_survey, filters=~Filters.update.edited_message)
     receive_poll_handler = PollAnswerHandler(BOT_MANAGER.receive_poll_answer)
 
-    get_recommendations_handler = CommandHandler('get_recommendations', BOT_MANAGER.get_recommendations, filters=~Filters.update.edited_message)
+    # ! TEST
+    test_handler = CommandHandler('test', BOT_MANAGER.test)
 
-    loggout_handler = CommandHandler('logout', BOT_MANAGER.logout, filters=~Filters.update.edited_message)
+
+
+    logout_handler = ConversationHandler (
+        entry_points=[CommandHandler('logout', BOT_MANAGER.confirm_logout)],
+        states={
+            CONFIRM_LOGOUT: [CallbackQueryHandler(BOT_MANAGER.confirm_playlist_deletion, pattern='^' + 'Yes' + '$')],
+            DELETE_USER: [
+                CallbackQueryHandler(BOT_MANAGER.delete_playlist, pattern='^' + 'Yes' + '$'),
+                CallbackQueryHandler(BOT_MANAGER.delete_user, pattern='^' + 'No' + '$')
+            ]
+        },
+        fallbacks=[CallbackQueryHandler(BOT_MANAGER.stop_logout)]
+    )
+
 
 
     echo_handler = MessageHandler(Filters.text, BOT_MANAGER.echo)
@@ -74,26 +107,15 @@ def load_handlers(dispatcher):
     dispatcher.add_handler(start_handler)
     dispatcher.add_handler(login_handler)
 
-    dispatcher.add_handler(create_playlist)
-    dispatcher.add_handler(get_playlist)
-    dispatcher.add_handler(add_music)
-
-    dispatcher.add_handler(clean_playlist)
-    dispatcher.add_handler(test_api_handler)
+    dispatcher.add_handler(setup_handler)
 
     dispatcher.add_handler(start_survey_handler)
     dispatcher.add_handler(receive_poll_handler)
 
-    dispatcher.add_handler(get_recommendations_handler)
-
-    dispatcher.add_handler(loggout_handler)
+    dispatcher.add_handler(test_handler)
 
 
-    #dispatcher.add_handler(CommandHandler('poll', BOT_MANAGER.poll))
-    #dispatcher.add_handler(PollAnswerHandler(BOT_MANAGER.receive_poll_answer))
-
-
-
+    dispatcher.add_handler(logout_handler)
 
     dispatcher.add_handler(echo_handler)
 

@@ -442,7 +442,7 @@ class SpotifyEndpointAcess:
 
         return all_tracks
 
-    def _personalization_endpoint(self, chat_id: str, amount: int, type_entity: str) -> list:
+    def _personalization_endpoint(self, chat_id: str, amount: int, is_all_info: bool, type_entity: str) -> list:
         """
         Gets Spotify ID's for user's recommended tracks or artists (common endpoint for functions 'get_user_top_tracks' and
         'get_user_top_artists')
@@ -450,6 +450,7 @@ class SpotifyEndpointAcess:
         Args:
             chat_id (int or string): ID of Telegram Bot chat
             amount (int): How many objects (artists or tracks) tor return
+            is_all_info (bool): If this function should return more informationa about the tracks selected (like name and artist)
             type_entity (str): 'tracks' for User's top tracks, 'artists' for User's top artists
 
         Returns:
@@ -478,21 +479,56 @@ class SpotifyEndpointAcess:
         response = request.send()
         response_items = response.json()['items']
 
-        items_id_list = []
-        for _, item_id in enumerate(item['id'] for item in response_items):
-            items_id_list.append(item_id)
+        item_list = []
 
-        return items_id_list
+        if not is_all_info:
+            for _, item_id in enumerate(item['id'] for item in response_items):
+                item_list.append(item_id)
+
+        # Choose what kind of information will be selected when returning extra info
+        # Tracks: Select ID, name, artists (names) and a link to Spotify
+        # Artists: Select ID, name, genres and a link to Spotify
+        else:
+            if type_entity == 'tracks':
+                for item in response_items:
+                    selected_item_attributes = {
+                        'id': item['id'],
+                        'name': item.get('name', ''),
+                        'artists': [artist['name'] for artist in item.get('artists', [])],
+                        'link': item['external_urls'].get('spotify', '')
+                    }
+                    item_list.append(selected_item_attributes)
+
+            elif type_entity == 'artists':
+                for item in response_items:
+                    selected_item_attributes = {
+                        'id': item['id'],
+                        'name': item.get('name', ''),
+                        'genres': item.get('genres', []),
+                        'link': item['external_urls'].get('spotify', '')
+                    }
+                    item_list.append(selected_item_attributes)
+
+        return item_list
 
     # ! Note: This method will only get the first 50 items. Changes on internal implementation will need to be to in other to
     # ! support getting lower rank items
-    def get_user_top_tracks(self, chat_id: str, amount: int) -> list:
+    def get_user_top_tracks(self, chat_id: str, amount: int, is_all_info: bool = False) -> list:
         """
-        Gets Spotify ID's for user's top tracks
+        Gets Spotify ID's for user's top tracks.
+
+        Note: Spotify can only get the top 50 first tracks
 
         Args:
             chat_id (int or string): ID of Telegram Bot chat
-            amount (int): How many objects (artists or tracks) tor return
+            amount (int): How many objects (artists or tracks) to return (<= 50)
+            is_all_info (bool): If this function should return more informationa about the tracks selected (like their name and artists)
+
+        Returns
+            If 'all_info' param is True: List of dicts containing its Spotify ID, the name and artists of tracks.
+            Else: List of strings containing the Spotify ID of the tracks
+
+            Note: Both correspond to the Top Tracks for the logged-in user
 
         Raises:
             NotLoggedInException: Raised if Telegram User with chat_id is not logged in (registered on DB)
@@ -501,17 +537,26 @@ class SpotifyEndpointAcess:
             SpotifyOperationException: Raised when a Spotify Request has failed
         """
 
-        return self._personalization_endpoint(chat_id, amount, 'tracks')
+        return self._personalization_endpoint(chat_id, amount, is_all_info, 'tracks')
 
     # ! Note: This method will only get the first 50 itens. Changes on internal implementation will need to be to in other to
     # ! support getting lower rank items
-    def get_user_top_artists(self, chat_id, amount):
+    def get_user_top_artists(self, chat_id: str, amount: int, is_all_info: bool = False):
         """
-        Gets Spotify ID's for user's top artists
+        Gets Spotify ID's for user's top artists.
+
+        Note: Spotify can only get the top 50 first artists
 
         Args:
             chat_id (int or string): ID of Telegram Bot chat
             amount (int): How many objects (artists or tracks) tor return
+            all_info (bool): If this function should return more information about the artists (like their names and associated genres)
+
+        Returns
+            If 'all_info' param is True: List of dicts containing its Spotify ID, the name of artists.
+            Else: List of strings containing the Spotify ID of the artists
+
+            Note: Both correspond to the Top Artists for the logged-in user
 
         Raises:
             NotLoggedInException: Raised if Telegram User with chat_id is not logged in (registered on DB)
@@ -520,7 +565,7 @@ class SpotifyEndpointAcess:
             SpotifyOperationException: Raised when a Spotify Request has failed
         """
 
-        return self._personalization_endpoint(chat_id, amount, 'artists')
+        return self._personalization_endpoint(chat_id, amount, is_all_info, 'artists')
 
     def _get_recommendation_endpoint_query_param(self, chat_id):
         """
