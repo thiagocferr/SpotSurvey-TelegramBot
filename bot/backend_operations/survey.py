@@ -118,8 +118,8 @@ class SurveyManager:
         # Get the dict related to the user's selected option
         selected_option = self.options[curr_options_set_name][user_selected_field]
 
-        # Get above dict, but without the key 'text'
-        selected_option_no_text = { key:selected_option[key] for key in selected_option if key != 'text' }
+        # Get above dict, with the selected text the key 'text' (for showing to user at another time)
+        selected_option_no_text = { key:selected_option[key] for key in selected_option}
 
         return (curr_attribute_name, selected_option_no_text)
 

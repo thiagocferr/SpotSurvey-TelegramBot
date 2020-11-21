@@ -306,6 +306,32 @@ class RedisAcess:
             return b_playlist_id
         return b_playlist_id.decode('utf-8')
 
+    def register_user_tracks(self, chat_id, tracks_info):
+        self.redis.hset(name = 'user' + ':' + str(chat_id) + ':' + 'seeds', key = 'tracks', value = json.dumps(tracks_info))
+
+    def get_user_tracks(self, chat_id):
+        b_tracks_val = self.redis.hget(name = 'user' + ':' + str(chat_id) + ':' + 'seeds', key = 'tracks')
+
+        if b_tracks_val is None:
+            return b_tracks_val
+        return json.loads(b_tracks_val.decode('utf-8'))
+
+    def remove_user_tracks(self, chat_id):
+        return bool(self.redis.hdel('user' + ':' + str(chat_id) + ':' + 'seeds', 'tracks'))
+
+    def register_user_artists(self, chat_id, artists_info):
+        self.redis.hset(name = 'user' + ':' + str(chat_id) + ':' + 'seeds', key = 'artists', value = json.dumps(artists_info))
+
+    def get_user_artists(self, chat_id):
+        b_artists_val = self.redis.hget(name = 'user' + ':' + str(chat_id) + ':' + 'seeds', key = 'artists')
+
+        if b_artists_val is None:
+            return b_artists_val
+        return json.loads(b_artists_val.decode('utf-8'))
+
+    def remove_user_artists(self, chat_id):
+        return bool(self.redis.hdel('user' + ':' + str(chat_id) + ':' + 'seeds', 'artists'))
+
     def register_survey_attribute(self, chat_id, attribute, values):
         """
         Used to store information about what the user 'chat_id' in one of the Telegram polls during the survey process \
@@ -346,7 +372,34 @@ class RedisAcess:
             return b_attribute_val
         return json.loads(b_attribute_val.decode('utf-8'))
 
+    def get_all_survey_attributes(self, chat_id):
+        """
+        Get all selected music attributes during survey process.
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+
+            Returns:
+                A dict, where the key is the name of the attribute (as in saved on DB) and values,  the dict associated with the key attribute
+            Raises:
+                    RedisError: Raised if there was some internal Redis error
+        """
+
+        all_attributes = self.redis.hgetall(name = 'user' + ':' + str(chat_id) + ':' + 'attributes')
+
+        all_attributes = {key.decode('utf-8'): json.loads(val.decode('utf-8')) for key, val in all_attributes.items() if val != b'{}'}
+        return all_attributes
+
+    def remove_all_survey_attributes(self, chat_id):
+
+        attributes_key = list(self.get_all_survey_attributes(chat_id).keys())
+        if len(attributes_key) != 0:
+            return bool(self.redis.hdel('user' + ':' + str(chat_id) + ':' + 'attributes', *attributes_key))
+
+        return True
+
     def delete_user(self, chat_id):
+        self.redis.delete('user' + ':' + str(chat_id) + ':' + 'seeds')
         self.redis.delete('user' + ':' + str(chat_id) + ':' + 'attributes')
         self.redis.delete('user' + ':' + str(chat_id) + ':' + 'acess_token')
 

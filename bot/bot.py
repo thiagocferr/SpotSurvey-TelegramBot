@@ -3,18 +3,29 @@ import os
 import dotenv
 import yaml
 
-from bot_handlers import BotHandlerManager
 from telegram.ext import (
     Updater, CommandHandler, MessageHandler,
     ConversationHandler, CallbackQueryHandler,
-    PollAnswerHandler, Filters
+    PollAnswerHandler, PollHandler, Filters
 )
 
-global updater
+from backend_operations.redis_operations import RedisAcess
+from backend_operations.spotify_endpoint_acess import SpotifyEndpointAcess
+
+from bot_general_callbacks import BotGeneralCallbacks
+from bot_seed_callbacks import BotSeedCallbacks
+from bot_survey_callbacks import BotSurveyCallbacks
+from bot_playlist_callbacks import BotPlaylistCallbacks
+from bot_logout_callbacks import BotLogoutCallbacks
+
+#global updater
+
 
 END_STATE = 0
 CONFIRM_LOGOUT, DELETE_USER = range(1, 3)
-SELECT_ARTISTS, SELECT_TRACKS = range (3, 5)
+SELECT_ARTISTS, SELECT_TRACKS, CANCEL, DONE = range(3, 7)
+GENERATE_PLAYLIST = 7
+GENERATE_QUESTION, RECEIVE_QUESTION = range(8, 10)
 
 def check_config_vars():
     """
@@ -60,68 +71,97 @@ def check_config_vars():
 
 def load_handlers(dispatcher):
     """ Load Telegram Bot Handlers """
-    start_handler = CommandHandler('start', BOT_MANAGER.start, filters=~Filters.update.edited_message)
-    login_handler = CommandHandler('login', BOT_MANAGER.login, filters=~Filters.update.edited_message)
+    start_handler = CommandHandler('start', BOT_GENERAL_CALLBACKS.start, filters=~Filters.update.edited_message)
+    help_handler = CommandHandler('help', BOT_GENERAL_CALLBACKS.help_callback, filters=~Filters.update.edited_message)
+
+    login_handler = CommandHandler('login', BOT_GENERAL_CALLBACKS.login, filters=~Filters.update.edited_message)
 
     setup_handler = ConversationHandler (
-        entry_points=[CommandHandler('setup', BOT_MANAGER.setup)],
+        entry_points=[CommandHandler('setup_seed', BOT_SEED_CALLBACKS.setup)],
         states={
             SELECT_ARTISTS: [
-                CallbackQueryHandler(BOT_MANAGER.select_artists, pattern='^' + 'Start|Previous|Next|Tracks' + '$'),
-                MessageHandler(filters=Filters.text & Filters.regex('^\d{1,2} *(, *\d{1,2} *)*$'), callback=BOT_MANAGER.selected_artists), # Numbers separated by comma
-                CallbackQueryHandler(BOT_MANAGER.setup_done, pattern='^' + 'Done' + '$')
+                CallbackQueryHandler(BOT_SEED_CALLBACKS.select_artists, pattern='^' + 'Start|Previous|Next|Tracks' + '$'),
+                MessageHandler(filters=Filters.text & Filters.regex('^\d{1,2} *(, *\d{1,2} *)*$'), callback=BOT_SEED_CALLBACKS.selected_artists), # Numbers separated by comma
+                MessageHandler(filters=Filters.text, callback=BOT_SEED_CALLBACKS.wrong_selection_input),
+                CallbackQueryHandler(BOT_SEED_CALLBACKS.ask_cancel, pattern='^' + 'Cancel' + '$'),
+                CallbackQueryHandler(BOT_SEED_CALLBACKS.setup_done, pattern='^' + 'Done' + '$')
             ],
             SELECT_TRACKS: [
-                CallbackQueryHandler(BOT_MANAGER.select_tracks, pattern='^' + 'Previous|Next|Artists' + '$'),
-                MessageHandler(filters=Filters.text & Filters.regex('^\d{1,2} *(, *\d{1,2} *)*$'), callback=BOT_MANAGER.selected_tracks), # Numbers separated by comma]
-                CallbackQueryHandler(BOT_MANAGER.setup_done, pattern='^' + 'Done' + '$')
+                CallbackQueryHandler(BOT_SEED_CALLBACKS.select_tracks, pattern='^' + 'Previous|Next|Artists' + '$'),
+                MessageHandler(filters=Filters.text & Filters.regex('^\d{1,2} *(, *\d{1,2} *)*$'), callback=BOT_SEED_CALLBACKS.selected_tracks), # Numbers separated by comma]
+                MessageHandler(filters=Filters.text, callback=BOT_SEED_CALLBACKS.wrong_selection_input),
+                CallbackQueryHandler(BOT_SEED_CALLBACKS.ask_cancel, pattern='^' + 'Cancel' + '$'),
+                CallbackQueryHandler(BOT_SEED_CALLBACKS.setup_done, pattern='^' + 'Done' + '$')
+            ],
+            CANCEL: [
+                CallbackQueryHandler(BOT_SEED_CALLBACKS.cancel, pattern='^' + 'Yes' + '$'),
+                CallbackQueryHandler(BOT_SEED_CALLBACKS.cancel_cancelation, pattern='^' + 'No' + '$'),
+            ],
+            DONE: [
+                CallbackQueryHandler(BOT_SEED_CALLBACKS.setup_confirm)
             ]
         },
-        fallbacks=[CallbackQueryHandler(BOT_MANAGER.stop_setup)]
+        fallbacks=[CallbackQueryHandler(BOT_SEED_CALLBACKS.stop_setup)]
     )
 
-    start_survey_handler = CommandHandler('start_survey', BOT_MANAGER.start_survey, filters=~Filters.update.edited_message)
-    receive_poll_handler = PollAnswerHandler(BOT_MANAGER.receive_poll_answer)
+    #start_survey_handler = CommandHandler('setup_attributes', BOT_SURVEY_CALLBACKS.start_survey, filters=~Filters.update.edited_message)
+    #receive_poll_handler = PollAnswerHandler(BOT_SURVEY_CALLBACKS.receive_poll_answer)
 
-    # ! TEST
-    test_handler = CommandHandler('test', BOT_MANAGER.test)
+    survey_handler = ConversationHandler(
+        entry_points=[CommandHandler('setup_attributes', BOT_SURVEY_CALLBACKS.start_survey, filters=~Filters.update.edited_message)],
+        states={
+            GENERATE_QUESTION: [CallbackQueryHandler(BOT_SURVEY_CALLBACKS.generate_poll, pattern='^' + 'Start' + '$')],
+            RECEIVE_QUESTION: [
+                MessageHandler(filters=Filters.text & Filters.regex('^ *\d{1,2} *$'), callback=BOT_SURVEY_CALLBACKS.receive_poll),
+                MessageHandler(filters=Filters.text, callback=BOT_SURVEY_CALLBACKS.wrong_selection_input),
+            ]
+        },
+        fallbacks=[CommandHandler('cancel', BOT_SURVEY_CALLBACKS.cancel, filters=~Filters.update.edited_message)]
+    )
 
+    get_setup_handler = CommandHandler('get_setup', BOT_GENERAL_CALLBACKS.get_setup, filters=~Filters.update.edited_message)
 
+    generate_playlist_handler = ConversationHandler(
+        entry_points=[CommandHandler('generate_playlist', BOT_PLAYLIST_CALLBACKS.confirm_user_preferences)],
+        states={
+            GENERATE_PLAYLIST: [CallbackQueryHandler(BOT_PLAYLIST_CALLBACKS.generate_playlist, pattern='^' + 'Yes' + '$')]
+        },
+        fallbacks=[CallbackQueryHandler(BOT_PLAYLIST_CALLBACKS.end)]
+    )
 
     logout_handler = ConversationHandler (
-        entry_points=[CommandHandler('logout', BOT_MANAGER.confirm_logout)],
+        entry_points=[CommandHandler('logout', BOT_LOGOUT_CALLBACKS.confirm_logout)],
         states={
-            CONFIRM_LOGOUT: [CallbackQueryHandler(BOT_MANAGER.confirm_playlist_deletion, pattern='^' + 'Yes' + '$')],
+            CONFIRM_LOGOUT: [CallbackQueryHandler(BOT_LOGOUT_CALLBACKS.confirm_playlist_deletion, pattern='^' + 'Yes' + '$')],
             DELETE_USER: [
-                CallbackQueryHandler(BOT_MANAGER.delete_playlist, pattern='^' + 'Yes' + '$'),
-                CallbackQueryHandler(BOT_MANAGER.delete_user, pattern='^' + 'No' + '$')
+                CallbackQueryHandler(BOT_LOGOUT_CALLBACKS.delete_playlist, pattern='^' + 'Yes' + '$'),
+                CallbackQueryHandler(BOT_LOGOUT_CALLBACKS.delete_user, pattern='^' + 'No' + '$')
             ]
         },
-        fallbacks=[CallbackQueryHandler(BOT_MANAGER.stop_logout)]
+        fallbacks=[CallbackQueryHandler(BOT_LOGOUT_CALLBACKS.stop_logout)]
     )
 
 
-
-    echo_handler = MessageHandler(Filters.text, BOT_MANAGER.echo)
+    test_handler = CommandHandler('test', BOT_GENERAL_CALLBACKS.test)
+    echo_handler = MessageHandler(Filters.text, BOT_GENERAL_CALLBACKS.echo)
 
     dispatcher.add_handler(start_handler)
     dispatcher.add_handler(login_handler)
+    dispatcher.add_handler(help_handler)
 
     dispatcher.add_handler(setup_handler)
 
-    dispatcher.add_handler(start_survey_handler)
-    dispatcher.add_handler(receive_poll_handler)
+    dispatcher.add_handler(survey_handler)
+    #dispatcher.add_handler(receive_poll_handler)
 
-    dispatcher.add_handler(test_handler)
+    dispatcher.add_handler(get_setup_handler)
 
+    dispatcher.add_handler(generate_playlist_handler)
 
     dispatcher.add_handler(logout_handler)
 
+    dispatcher.add_handler(test_handler)
     dispatcher.add_handler(echo_handler)
-
-
-
-
 
 
 def start_bot():
@@ -148,5 +188,15 @@ if __name__ == "__main__":
     dotenv.load_dotenv()
 
     if check_config_vars() == 0:
-        BOT_MANAGER = BotHandlerManager()
+
+        REDIS_INSTANCE = RedisAcess()
+        SPOTIFY_ENDPOINTS_ACESS = SpotifyEndpointAcess(REDIS_INSTANCE)
+
+        BOT_GENERAL_CALLBACKS = BotGeneralCallbacks(REDIS_INSTANCE, SPOTIFY_ENDPOINTS_ACESS)
+        BOT_SEED_CALLBACKS = BotSeedCallbacks(REDIS_INSTANCE, SPOTIFY_ENDPOINTS_ACESS)
+        BOT_SURVEY_CALLBACKS = BotSurveyCallbacks(REDIS_INSTANCE, SPOTIFY_ENDPOINTS_ACESS)
+        BOT_PLAYLIST_CALLBACKS = BotPlaylistCallbacks(REDIS_INSTANCE, SPOTIFY_ENDPOINTS_ACESS)
+        BOT_LOGOUT_CALLBACKS = BotLogoutCallbacks(REDIS_INSTANCE, SPOTIFY_ENDPOINTS_ACESS)
+
+
         start_bot()

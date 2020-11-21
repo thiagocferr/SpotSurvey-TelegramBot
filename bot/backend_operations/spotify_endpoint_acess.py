@@ -2,12 +2,11 @@ import string, secrets
 import os
 import yaml
 import logging
-import random
 
 from urllib.parse import urlencode
 
-from redis_operations import RedisAcess, AlreadyLoggedInException, TokenRequestException, NotLoggedInException # ! Local module
-from spotify_request import SpotifyRequest, SpotifyOperationException # ! Local module
+from .redis_operations import RedisAcess, NotLoggedInException
+from .spotify_request import SpotifyRequest, SpotifyOperationException
 
 LOGGER = logging.getLogger(__name__)
 
@@ -579,19 +578,22 @@ class SpotifyEndpointAcess:
 
         # Get a combination of five tracks and artist. The amount of which category is random
         #random_amount = random.randint(0, 1)
-        seed_artists = self.get_user_top_artists(chat_id, 2)
-        seed_tracks = self.get_user_top_tracks(chat_id, 3)
+        #seed_artists = self.get_user_top_artists(chat_id, 2)
+        #seed_tracks = self.get_user_top_tracks(chat_id, 3)
+
+        seed_artists = self.redis_instance.get_user_artists(chat_id)
+        seed_artists = [artist['id'] for artist in seed_artists]
+
+        seed_tracks = self.redis_instance.get_user_tracks(chat_id)
+        seed_tracks = [track['id'] for track in seed_tracks]
 
         params = {
             'limit': 20,
             'market': 'from_token',
             'seed_artists': ','.join(seed_artists),
-            'seed_tracks': '',
+            'seed_tracks': ','.join(seed_tracks),
             'seed_genres': ''
         }
-
-        # ! TODO: NEEDS TO BE RESOLVED (RANGE RESTRICTIONS TOO HARD. NEED A WAY TO ELIMINATE THE SE RESTRICTIONS (ASK FOR USER FOR FLEXIBILITY ONE BY ONE, IGNORE RANGES?))
-        return params
 
         # For each attribute that we expect to find on DB, mark if we shall only find Level values (marked on DB with key ending with '_level' and here,
         # assigned to value 'level'), only Range values (marked with key ending with '_range' on  DB and here, 'range') or if there a both of them on the DB
@@ -619,11 +621,12 @@ class SpotifyEndpointAcess:
             max_attribute_val = setup_value.get('max_val', None)
 
             if db_presense == 'both':
-                attribute_level_val = self.redis_instance.get_survey_attribute(chat_id, attribute + '_level')
-                if attribute_level_val:
+                if self.redis_instance.get_survey_attribute(chat_id, attribute + '_level'):
                     db_presense = 'level'
-                else:
+                elif self.redis_instance.get_survey_attribute(chat_id, attribute + '_range'):
                     db_presense = 'range'
+                else:
+                    continue
 
             if db_presense == 'level':
                 level_val_dict = self.redis_instance.get_survey_attribute(chat_id, attribute + '_level')
@@ -654,12 +657,25 @@ class SpotifyEndpointAcess:
                     range_max_val = min(range_max_val, max_attribute_val)
 
                     query_key_string = 'max_' + attribute
-                    params[query_key_string] = range_min_val
+                    params[query_key_string] = range_max_val
 
         return params
 
-    # ! Note: Paging is not available on this method yet!
+    # ! Note: Paging is not available on this method yet
     def get_recommendations(self, chat_id):
+        """
+        Get tracks recommended by Spotify Web API, using information get from user from other set of commands
+
+        For the seeds (for now, only artists and tracks), see Telegram Bot command for setting seeds (currently, '/setup' command)
+        For the tunable attributes, a survey (set of Telegram Polls) (currently, '/start_survey' command)
+
+        Args:
+            chat_id (int or string): ID of Telegram Bot chat
+
+        Returns:
+            List of strings (Spotify IDs for tracks).
+
+        """
 
         acess_token = self._get_acess_token_valid(chat_id)
 
@@ -676,11 +692,9 @@ class SpotifyEndpointAcess:
 
         tracks_id_list = []
         for track in response_dict['tracks']:
-            tracks_id_list.append(track['id'])
+            tracks_id_list.append(track['uri'])
 
         return tracks_id_list
-
-
 
 
     def test(self, chat_id):

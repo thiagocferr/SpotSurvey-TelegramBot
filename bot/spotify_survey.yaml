@@ -1,28 +1,42 @@
 
+# NOTE: Because of the small pool size of musics (generaly 150) available for each seed, it's common that when users are allowed to
+#       choose ranges for the music attributes, no musics are recommended. This usually happens because selecting a Range parameter
+#       for an attribute, unlike choosing a Level parameter, excludes all possible musics with that attribute's value outside of that
+#       range. On the other side, choosing a Level parameter will not exclude any musics, but only serve as a guide to choose musics that
+#       have attribute values closest to the specified Level.
+#
+#       That is why some questions are commented out: On this current version, to garantee that a playlist will be filled (most of the time),
+#       most questions that set an interval (except for the Music Duration Range) were excluded from the questionary. Their selection mechanic
+#       is working (it was programmed on this bot that Levels have precedence to Ranges for the same attribute), but to have a better user
+#       experience, these questions are not included on the survey.
+#
+#       If you want to enable these questions, just remove the commented lines on the 'questions' section
+#
+
 questions:
-    - {text: 'Acousticness Level (Confidence of music being acoustic)', options_set: 'set1', attribute: 'acousticness_level', skip_if_set: 1}
-    - {text: 'Acousticness Range (will be ignored if Acousticness Level was set)', options_set: 'set2', attribute: 'acousticness_range'}
+    - {text: 'Acousticness Level (Confidence of music being acoustic)', options_set: 'set1', attribute: 'acousticness_level'}
+    #- {text: 'Acousticness Range (will be ignored if Acousticness Level was set)', options_set: 'set2', attribute: 'acousticness_range'}
 
-    - {text: 'Danceability Level (How great the music is for dancing)', options_set: 'set1', attribute: 'danceability_level', skip_if_set: 1}
-    - {text: 'Danceability Range (will be ignored if Danceability Level was set)', options_set: 'set2', attribute: 'danceability_range'}
+    - {text: 'Danceability Level (How great the music is for dancing)', options_set: 'set1', attribute: 'danceability_level'}
+    #- {text: 'Danceability Range (will be ignored if Danceability Level was set)', options_set: 'set2', attribute: 'danceability_range'}
 
-    - {text: 'Energy Level (Measure of music intensity and activity)', options_set: 'set1', attribute: 'energy_level', skip_if_set: 1}
-    - {text: 'Energy Range (will be ignored if Energy Level was set)', options_set: 'set2', attribute: 'energy_range'}
+    - {text: 'Energy Level (Measure of music intensity and activity)', options_set: 'set1', attribute: 'energy_level'}
+    #- {text: 'Energy Range (will be ignored if Energy Level was set)', options_set: 'set2', attribute: 'energy_range'}
 
-    - {text: 'Instrumentalness Level (How likely it is to have instrumental tracks)', options_set: 'set3', attribute: 'instrumentalness_level', skip_if_set: 1}
-    - {text: 'Instrumentalness Range (will be ignored if Instrumentalness Level was set)', options_set: 'set4', attribute: 'instrumentalness_range'}
+    - {text: 'Instrumentalness Level (How likely it is to have instrumental tracks)', options_set: 'set3', attribute: 'instrumentalness_level'}
+    #- {text: 'Instrumentalness Range (will be ignored if Instrumentalness Level was set)', options_set: 'set4', attribute: 'instrumentalness_range'}
 
     - {text: 'Liveness Level (Confidence on the presence of an audience, or live music)', options_set: 'set1', attribute: 'liveness_level'}
 
-    - {text: 'Popularity Level (How popular a music is)', options_set: 'popularity_level', attribute: 'popularity_level', skip_if_set: 1}
-    - {text: 'Popularity Range (will be ignored if Popularity Level was set)', options_set: 'popularity_range', attribute: 'popularity_range'}
+    - {text: 'Popularity Level (How popular a music is)', options_set: 'popularity_level', attribute: 'popularity_level'}
+    #- {text: 'Popularity Range (will be ignored if Popularity Level was set)', options_set: 'popularity_range', attribute: 'popularity_range'}
 
     - {text: 'Speechiness Level (How much spoke words is present on track)', options_set: 'set5', attribute: 'speechiness_level'}
 
-    - {text: 'Positiveness Level (How much positive a music is)', options_set: 'set1', attribute: 'valence_level', skip_if_set: 1}
-    - {text: 'Positiveness Range (will be ignored if Positiveness Level was set)', options_set: 'set2', attribute: 'valance_range'}
+    - {text: 'Positiveness Level (How much positive a music is)', options_set: 'set1', attribute: 'valence_level'}
+    #- {text: 'Positiveness Range (will be ignored if Positiveness Level was set)', options_set: 'set2', attribute: 'valance_range'}
 
-    - {text: 'Music Duration', options_set: 'duration', attribute: 'duration_range'}
+    - {text: 'Music Duration Range', options_set: 'duration', attribute: 'duration_range'}
 
 
 options:
