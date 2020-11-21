@@ -24,6 +24,3 @@ spotify:
 telegram:
     webhookURL: 'https://spot-survey-bot7.loca.lt/'
 
-
-
-#googleForms: 'https://docs.google.com/forms/d/e/1FAIpQLSdT3Ksx8Em4jal1glaivSrDksiSECLiYzB7saT2NbH6Y9Y71Q/viewform?usp=pp_url&entry.366340186={chat_id}'

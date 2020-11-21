@@ -178,7 +178,7 @@ def start_bot():
 
     # Start Webhook and set it to a domain (https://[domain]/[token])
     updater.start_webhook(listen='0.0.0.0', port=5001, url_path=telegram_bot_token)
-    updater.bot.setWebhook(telegram_webhook_url + telegram_bot_token)
+    #updater.bot.setWebhook(telegram_webhook_url + telegram_bot_token)
 
 if __name__ == "__main__":
 

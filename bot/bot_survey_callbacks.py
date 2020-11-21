@@ -106,6 +106,14 @@ class BotSurveyCallbacks:
         chat_id = update.effective_chat.id
         user_answer = int(update.message.text) - 1
 
+        _, options = context.chat_data['spotify_survey'].get_poll_info()
+        if user_answer < 0 or user_answer >= len(options):
+            context.bot.send_message(
+                chat_id=chat_id,
+                text="""{choice} is not an option. Try again""".format(choice=(user_answer + 1)))
+            return self.generate_poll(update, context)
+
+
         # Getting selected attribute and its set of values selected by the use'r
         attribute, values = context.chat_data['spotify_survey'].get_curr_attribute_values(user_answer)
         self.redis_instance.register_survey_attribute(chat_id, attribute, values)
@@ -125,7 +133,6 @@ class BotSurveyCallbacks:
         context.chat_data['spotify_survey'].go_next_poll(skip_amount)
 
         return self.generate_poll(update, context)
-        #self._send_spotify_poll(chat_id, context)
 
     def wrong_selection_input(self, update: Update, context: CallbackContext):
         message = """ Error: input must be a single 2-digit number corresponding to the current options. Please try again"""

@@ -1,13 +1,14 @@
 from flask import Flask, jsonify, request, redirect
 from redis import Redis
+
 import string
 import secrets
+import yaml
 
 app = Flask(__name__)
 
-# TODO: Change later
 redis = Redis(
-    host = 'localhost',
+    host = 'redis',
     port = 6379,
     #password=,
     db = 1 # USed for memcache the acess token into telegram bot
@@ -33,5 +34,9 @@ def callback():
         memcache_hash_code = code_generator(64)
         redis.set(name=memcache_hash_code, value=code)
 
-        return redirect('https://telegram.me/SpotSurveyTestBot?start=' + memcache_hash_code)
+        telegram_bot_link = yaml.safe_load(open('config.yaml'))['telegramBotLink']
+        return redirect(telegram_bot_link + '?start=' + memcache_hash_code)
 
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0")

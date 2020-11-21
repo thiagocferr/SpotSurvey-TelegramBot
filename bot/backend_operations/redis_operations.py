@@ -46,14 +46,14 @@ class RedisAcess:
     def __init__(self):
 
         self.redis = Redis(
-            host = 'localhost',
+            host = 'redis',
             port = 6379,
             #password=,
             db = 0 # Used for memcache the acess token into telegram bot
         )
 
         self.memcache = Redis(
-            host = 'localhost',
+            host = 'redis',
             port = 6379,
             #password=,
             db = 1 # Memcache, filled on webserver side (to be delete when recieved here)
