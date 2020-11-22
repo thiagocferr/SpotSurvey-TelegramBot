@@ -6,7 +6,7 @@ spotify:
         tokenURL: 'https://accounts.spotify.com/api/token'
         userURL: 'https://api.spotify.com/v1/me'
 
-        redirectURL: 'https://spot-survey-server6.loca.lt/callback' # ! Needs to be registered on Spotify API Dashboard!
+        redirectURL: '' # ! Fill this with localtunnel-generated URL for webserver (with /callback) (see tutorial)
 
         playlist:
             userURL: 'https://api.spotify.com/v1/users/{user_id}/playlists'
@@ -22,5 +22,5 @@ spotify:
     playlistDescription: "A playlists created by the Telegram Bot SpotSurveyBot"
 
 telegram:
-    webhookURL: 'https://spot-survey-bot7.loca.lt/'
+    webhookURL: '' # ! Fill this with localtunnel-generated URL for bot (see tutorial)
 

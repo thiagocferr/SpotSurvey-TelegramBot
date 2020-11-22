@@ -111,7 +111,7 @@ class BotSeedCallbacks:
                 return self._select_items(update, context, 'artists')
 
             if (context.chat_data[item_type + '_list_page'] < 0 or
-                context.chat_data[item_type + '_list_page'] > math.ceil(context.chat_data['total_' + item_type] / context.chat_data['page_lenght']) - 1):
+                context.chat_data[item_type + '_list_page'] > math.ceil(len(context.chat_data[item_type + '_list']) / context.chat_data['page_lenght']) - 1):
                 raise ValueError(""" Page out of bounds! """)
 
 
@@ -129,7 +129,8 @@ class BotSeedCallbacks:
         buttons_list = []
         if context.chat_data[item_type + '_list_page'] > 0:
             buttons_list.append(InlineKeyboardButton(text='Previous', callback_data='Previous'))
-        if context.chat_data[item_type + '_list_page'] < math.ceil(context.chat_data['total_' + item_type] / context.chat_data['page_lenght']) - 1:
+        # TODO: CHECK IF THIS BREAKS ANYTHING
+        if context.chat_data[item_type + '_list_page'] < math.ceil(len(context.chat_data[item_type + '_list']) / context.chat_data['page_lenght']) - 1:
             buttons_list.append(InlineKeyboardButton(text='Next', callback_data='Next'))
 
         selection_option = ''

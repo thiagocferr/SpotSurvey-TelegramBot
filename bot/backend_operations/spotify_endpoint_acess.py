@@ -610,7 +610,7 @@ class SpotifyEndpointAcess:
             'popularity': {'db_presense': 'both', 'min_val': 0, 'max_val': 100},
             'speechiness': {'db_presense': 'level', 'min_val': 0, 'max_val': 1},
             'valance': {'db_presense': 'both', 'min_val': 0, 'max_val': 1},
-            'duration': {'db_presense': 'range', 'min_val': 0},
+            'duration': {'db_presense': 'range', 'min_val': 0, 'max_val': float('inf')},
         }
 
         # ! NOTE: The program's behavior, describe on the description of this function, is implemented here.
@@ -630,6 +630,10 @@ class SpotifyEndpointAcess:
 
             if db_presense == 'level':
                 level_val_dict = self.redis_instance.get_survey_attribute(chat_id, attribute + '_level')
+
+                if level_val_dict is None:
+                    continue
+
                 level_val = None
 
                 if level_val_dict.get('target_val') is not None:
@@ -642,18 +646,21 @@ class SpotifyEndpointAcess:
                     params[query_key_string] = level_val
 
             elif db_presense == 'range':
+
                 range_val_dict = self.redis_instance.get_survey_attribute(chat_id, attribute + '_range')
+                if range_val_dict is None:
+                    continue
 
                 range_min_val = range_val_dict.get('min_val', None)
                 range_max_val = range_val_dict.get('max_val', None)
 
-                if isinstance(range_min_val, (float, int)):
+                if range_min_val is not None and isinstance(range_min_val, (float, int)):
                     range_min_val = max(range_min_val, min_attribute_val)
 
                     query_key_string = 'min_' + attribute
                     params[query_key_string] = range_min_val
 
-                if isinstance(range_max_val, (float, int)):
+                if range_max_val is not None and isinstance(range_max_val, (float, int)):
                     range_max_val = min(range_max_val, max_attribute_val)
 
                     query_key_string = 'max_' + attribute

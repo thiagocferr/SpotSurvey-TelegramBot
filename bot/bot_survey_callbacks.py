@@ -34,8 +34,6 @@ class BotSurveyCallbacks:
         else:
             self.spotify_endpoint_acess = SpotifyEndpointAcess(self.redis_instance)
 
-        #self.__load_spotify_survey__()
-
     def __load_spotify_survey__(self):
         """ Loads the Spotify Survey from file 'spotify_survey.yaml' """
 
@@ -74,8 +72,6 @@ class BotSurveyCallbacks:
         update.message.reply_text("""Press 'Start' to start survey""", reply_markup=keyboard)
 
         return GENERATE_QUESTION
-
-        #self._send_spotify_poll(update.effective_chat.id, context)
 
     def generate_poll(self, update: Update, context: CallbackContext):
 
@@ -141,85 +137,11 @@ class BotSurveyCallbacks:
         return RECEIVE_QUESTION
 
     def cancel(self, update: Update, context: CallbackContext):
+        update.message.reply_text("Attributes setup canceled. Note that no attributes settings will be saved.")
+
+        if context.chat_data.get('spotify_survey') is not None:
+            del context.chat_data['spotify_survey']
+
+        self.redis_instance.remove_all_survey_attributes(update.effective_chat.id)
+
         return ConversationHandler.END
-
-    '''
-    def _send_spotify_poll(self, chat_id, context):
-
-        question, options = self.spotify_survey.get_poll_info()
-
-        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(text='Next', callback_data='Next')]])
-
-        message = context.bot.send_poll(
-            chat_id,
-            question,
-            options,
-            is_anonymous=False,
-            reply_markup=keyboard
-        )
-        # Save some info about the poll the chat_data for later use in receive_poll_answer
-        payload = {
-            "options": options,
-            "message_id": message.message_id,
-            "chat_id": chat_id,
-            "poll_type": "spotify",
-        }
-
-        #context.chat_data.update(payload)
-        context.chat_data[str(message.poll.id)] = payload
-
-
-    def receive_poll_answer(self, update: Update, context: CallbackContext):
-        """All received poll will pass through this function. Servers as router for different kind of responses"""
-
-        answer = update.poll_answer
-        poll_id = answer.poll_id
-
-        # What kind of poll was received. Depends on the funtion that created the poll to send extra data through the bot context
-        poll_type = ''
-
-        try:
-            poll_type = context.chat_data[poll_id]["poll_type"]
-        except KeyError:
-            return
-
-        if poll_type == "spotify":
-            self._receive_spotify_poll_answer(update, context)
-
-    def _receive_spotify_poll_answer(self, update, context):
-        # Get the attribute associated with the received poll and what value was selected by the user
-        # (obs: selected value no as the string select, but as an object representing programmatically what the user's
-        # choice represents)
-
-        answer = update.poll_answer
-        poll_id = answer.poll_id
-
-        # answer.option_ids contains list of selected options. As the polls of this bot can oly have one element, use it
-        user_answer = answer.option_ids[0]
-
-        try:
-            chat_id =  context.bot_data[poll_id]["chat_id"]
-        # this means this poll answer update is from an old poll
-        except KeyError:
-            return
-
-        # Getting selected attribute and its set of values selected by the use'r
-        attribute, values = self.spotify_survey.get_curr_attribute_values(user_answer)
-        self.redis_instance.register_survey_attribute(chat_id, attribute, values)
-
-        # if this was the last question of the survey, stop sending polls
-        if self.spotify_survey.is_end():
-            update.message.reply_text(""" Survey has been completed! """)
-            return
-
-        # Get the amount (if any) of questions to be skiped if some value was decided (on the current case,
-        # options that are not skiping setting a value, like options 'Ignore Level' or 'Ignore Range', that
-        # saves empty dicts on the DB)
-        skip_amount = 0
-        if len(values) > 0:
-            skip_amount = self.spotify_survey.get_skip_count()
-
-        self.spotify_survey.go_next_poll(skip_amount)
-        self._send_spotify_poll(chat_id, context)
-
-    '''

@@ -35,6 +35,10 @@ class BotPlaylistCallbacks:
             update.message.reply_text(""" Cannot perform operation: User not logged in with a Spotify account! """)
             return ConversationHandler.END
 
+        if not self.redis_instance.get_user_artists(update.effective_chat.id) and not self.redis_instance.get_user_tracks(update.effective_chat.id):
+            update.message.reply_text(""" You must have chosen your seeds with command '/setup_seed' before! """)
+            return ConversationHandler.END
+
         buttons = [
             [
                 InlineKeyboardButton(text='Yes', callback_data='Yes'),

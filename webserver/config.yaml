@@ -1,3 +1,2 @@
-appName: SpotSurveyBot
 
-telegramBotLink: 'https://telegram.me/SpotSurveyTestBot'
+telegramBotLink: '' # ! Fill this with bot link (to telegram)

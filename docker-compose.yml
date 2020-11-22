@@ -29,11 +29,13 @@ services:
         links:
           - webserver
         command:
-          --local-host webserver --port 5000 --subdomain spot-survey-server6
+          --local-host webserver --port 5000 --subdomain your-sub-domain-for-webserver-here # ! CHANGE SUBDOMAIN HERE!
+        restart: on-failure # Will restart if there's an internal problem to the server hosting localtunnel service
 
     localtunnel_bot:
         image: efrecon/localtunnel
         links:
           - bot
         command:
-          --local-host bot --port 5001 --subdomain spot-survey-bot7
+          --local-host bot --port 5001 --subdomain your-sub-domain-for-bot-here # ! CHANGE SUBDOMAIN HERE!
+        restart: on-failure # Will restart if there's an internal problem to the server hosting localtunnel service

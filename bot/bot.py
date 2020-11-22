@@ -112,6 +112,7 @@ def load_handlers(dispatcher):
         states={
             GENERATE_QUESTION: [CallbackQueryHandler(BOT_SURVEY_CALLBACKS.generate_poll, pattern='^' + 'Start' + '$')],
             RECEIVE_QUESTION: [
+                CommandHandler('cancel', BOT_SURVEY_CALLBACKS.cancel, filters=~Filters.update.edited_message),
                 MessageHandler(filters=Filters.text & Filters.regex('^ *\d{1,2} *$'), callback=BOT_SURVEY_CALLBACKS.receive_poll),
                 MessageHandler(filters=Filters.text, callback=BOT_SURVEY_CALLBACKS.wrong_selection_input),
             ]
@@ -124,7 +125,10 @@ def load_handlers(dispatcher):
     generate_playlist_handler = ConversationHandler(
         entry_points=[CommandHandler('generate_playlist', BOT_PLAYLIST_CALLBACKS.confirm_user_preferences)],
         states={
-            GENERATE_PLAYLIST: [CallbackQueryHandler(BOT_PLAYLIST_CALLBACKS.generate_playlist, pattern='^' + 'Yes' + '$')]
+            GENERATE_PLAYLIST: [
+                CallbackQueryHandler(BOT_PLAYLIST_CALLBACKS.generate_playlist, pattern='^' + 'Yes' + '$'),
+                CallbackQueryHandler(BOT_PLAYLIST_CALLBACKS.end, pattern='^' + 'No' + '$')
+            ]
         },
         fallbacks=[CallbackQueryHandler(BOT_PLAYLIST_CALLBACKS.end)]
     )
@@ -141,27 +145,20 @@ def load_handlers(dispatcher):
         fallbacks=[CallbackQueryHandler(BOT_LOGOUT_CALLBACKS.stop_logout)]
     )
 
-
-    test_handler = CommandHandler('test', BOT_GENERAL_CALLBACKS.test)
-    echo_handler = MessageHandler(Filters.text, BOT_GENERAL_CALLBACKS.echo)
+    unknown_command_handler = MessageHandler(Filters.text, BOT_GENERAL_CALLBACKS.unknown_command)
 
     dispatcher.add_handler(start_handler)
     dispatcher.add_handler(login_handler)
     dispatcher.add_handler(help_handler)
 
     dispatcher.add_handler(setup_handler)
-
     dispatcher.add_handler(survey_handler)
-    #dispatcher.add_handler(receive_poll_handler)
-
     dispatcher.add_handler(get_setup_handler)
-
     dispatcher.add_handler(generate_playlist_handler)
-
     dispatcher.add_handler(logout_handler)
 
-    dispatcher.add_handler(test_handler)
-    dispatcher.add_handler(echo_handler)
+    # MUST BE PLACE LAST
+    dispatcher.add_handler(unknown_command_handler)
 
 
 def start_bot():

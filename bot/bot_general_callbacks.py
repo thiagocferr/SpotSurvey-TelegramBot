@@ -208,15 +208,9 @@ class BotGeneralCallbacks:
 
         context.bot.send_message(chat_id=update.effective_chat.id, text=help_message)
 
-
-    def test(self, update: Update, context: CallbackContext):
-        top_artists_full_first = self.spotify_endpoint_acess.get_user_top_tracks(update.message.chat_id, 10, True)[0]
-        update.message.reply_text(top_artists_full_first['name'])
-
     # ! Test function!
-    def echo(self, update, context):
-        """ Echoes what user says (not a command) """
-        context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text)
+    def unknown_command(self, update, context):
+        context.bot.send_message(chat_id=update.effective_chat.id, text="""Unknow command. Try '/help' for list of commands""")
 
     def login(self, update, context):
         """'/login' command. Makes user authentication from Spotify"""
