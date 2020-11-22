@@ -14,7 +14,7 @@ _Nota_: No estado atual do projeto, a sua utilização pública não é recomend
 
 ## _Setup_ do bot (para reprodução)
 
-O SpotSurveyBot é executado como um conjunto de _containers_ do Docker, mas antes de se poder executá-los, alguns passos adicionais são necessário.
+O SpotSurveyBot é executado como um conjunto de _containers_ do Docker, mas antes de executá-los, alguns passos adicionais são necessários.
 
 Antes mais nada, o código do bot utiliza um arquivo que guarda variáveis de ambiente chamado `.env`. Como ele guarda os tokens de acesso às APIs usadas (Telegram e Spotify), ele não está presente nesse repositório. No seu lugar, existe um arquivo `.env_model` que possui os campos que devem ser definidos para execução do bot. Quando for executar, renomeie o arquivo de `.env_model` para `.env` e preencha os campos vazios com as informações relevantes (o que será mencionado mais adiante).
 
@@ -22,7 +22,7 @@ Antes mais nada, o código do bot utiliza um arquivo que guarda variáveis de am
 
 Primeiramente, você deve possuir uma conta no [Telegram](https://web.telegram.org) e iniciar um conversa com [BotFather](https://telegram.me/BotFather), um perfil que serve para registro de bots no Telegram. Você deverá então criar um bot. Para mais informações sobre como criar um bot usando o BotFather, acesse <https://core.telegram.org/bots#6-botfather>.
 
-Alguns detalhes sobre como a criação do bot deve ser feita:
+Alguns detalhes sobre a criação do bot:
 
 - O _name_ do bot pode pode ser o que você quiser
 
@@ -36,23 +36,23 @@ Após o registro, você receberá o _token_ de autorização de uso do bot que v
 
 ### 2º passo: Registro de aplicação no Spotify
 
-Para utiliza a API do Spotify, necessária para o funcionamento do SpotSurveyBot, deve-se primeiro registrar a aplicação na [_dashboard_](https://developer.spotify.com/dashboard/login) do Spotify. Para isso, uma conta do Spotify é necessária.
+Para utilizar a API do Spotify, necessária para o funcionamento do SpotSurveyBot, deve-se primeiro registrar a aplicação na [_dashboard_](https://developer.spotify.com/dashboard/login) do Spotify. Para isso, uma conta do Spotify é necessária.
 
-Após se logar com sua conta Spotify, crie uma aplicação. Após isso, você irá para a _dashboard_ de sua aplicação. Lá você encontrará o seu **Client ID** e, escondido sob um botão, o seu **Client Secret**, dois _tokens_ necessários para o funcionamento do bot. Copie eles para as variáveis **SPOTIFY_CLIENT_ID** e **SPOTIFY_CLIENT_SECRECT** do arquivo `.env`. Note que você precisará adicionar uma URI de redirecionamento em _edit settings_, sendo esse o endereço para o qual o usuário será redirecionado ao aceitar (ou negar) o acesso da aplicação a certas informações e operações sobre sua conta. O valor a ser colocado será tópico do próximo passo.
+Após se logar com sua conta Spotify, crie uma aplicação. Após isso, você irá para a _dashboard_ de sua aplicação. Lá você encontrará o seu **Client ID** e, escondido sob um botão, o seu **Client Secret**, dois _tokens_ necessários para o funcionamento do bot. Copie eles para as variáveis **SPOTIFY_CLIENT_ID** e **SPOTIFY_CLIENT_SECRECT** do arquivo `.env`, respectivamente. Note que você precisará adicionar uma URI de redirecionamento em _edit settings_, sendo esse o endereço para o qual o usuário será redirecionado ao aceitar (ou negar) o acesso da aplicação a certas informações e operações sobre sua conta. O valor a ser colocado será tópico do próximo passo.
 
 ### 3º passo: Configurando servidores e _tunneling_
 
-Como o SpotSurveyBot é basicamente um servidor que recebe atualizações do Telegram quado há uma interação com o usuário, até poderíamos criar um servidor local. Porém, isso não foi possível com esse bot por dois fatores: dessa forma, pessoas que não estão conectadas na rede local não conseguiriam interagir com o bot e, da forma como o [processo de autenticação da API do Spotify](https://developer.spotify.com/documentation/general/guides/authorization-guide/#authorization-code-flow) funciona, após o usuário permitir a aplicação se conectar com o Spotify, ocorre um redirecionamento para uma URL. Como a intenção era que o bot pudesse ser acessado de qualquer lugar, essa URL teria que ser um domínio registrado. Como pessoalmente não possuo nenhum domínio registrado ou servidor externo que possa rodar o bot, resolvi usar um serviço de tunelamento de um domínio específico para um servidor local. Mais especificamente, usei o [localtunnel](https://github.com/localtunnel/localtunnel).
+Como o SpotSurveyBot é basicamente um servidor que recebe atualizações do Telegram quando há uma interação com o usuário, até poderíamos criar um servidor local. Porém, isso não foi possível com esse bot por dois fatores: pessoas que não estão conectadas na rede local não conseguiriam interagir com o bot e, da forma como o [processo de autenticação da API do Spotify](https://developer.spotify.com/documentation/general/guides/authorization-guide/#authorization-code-flow) funciona, após o usuário permitir a aplicação se conectar com o Spotify, ocorre um redirecionamento para uma URL. Como a intenção era que o bot pudesse ser acessado de qualquer lugar, essa URL teria que ser um domínio registrado. Como pessoalmente não possuo nenhum domínio registrado ou servidor externo que possa rodar o bot, resolvi usar um serviço de tunelamento de um domínio específico para um servidor local. Mais especificamente, usei o [localtunnel](https://github.com/localtunnel/localtunnel).
 
 Da forma como o projeto está configurado, há dois serviços (_docker containers_) que rodam instâncias do _localtunnel_ sobre dois subdomínios diferentes: o primeiro redireciona para a porta 5000 e conecta à internet (sob um domínio fixo) um servidor web local criado com Flask. O segundo redireciona para a porta 5001 e permite o estabelecimento de um _Webhook_ do Telegram, permitindo acesso às atualizações vindas do Telegram. Você deve então:
 
 - Escolher dois subdomínios únicos para os serviços do _localtunnel_ e colocar seus nomes após a opção '--subdomain' no campo **services[localtunnel_web][command]** e **services[localtunnel_bot][command]**, no arquivo `docker-compose.yml`. É imprescindível para o funcionamento correto do bot que esses sejam subdomínios únicos. Para checar se os subdomínios selecionados estão disponíveis, você pode instalar a aplicação CLI do _localtunnel_ usando `npm install -g localtunnel` e rodar o túnel usando `lt --port 5000 --subdomain your-sub-domain-here`, ou você pode checar o _log_ dos _containers_ rodando os serviços do _localtunnel_ ao executar todos os serviços do _docker-compose_ conjuntamente (explicado nos próximos passos) e verificar se a URL alocada para você possui o subdomínio selecionado (algo similar a `https://your-sub-domain-here.loca.lt`), caso ele já não esteja sendo usado por alguém, ou se ele possui um subdomínio aleatório, caso contrário.
 
-- Verificando que os subdomínios escolhidos não estão sendo usado e conseguindo as URLs alocada para você, registre a URL que será alocada pelo serviço **localtunnel_web** do _docker-compose_, com um '/callback' no fim (algo como `https://your-sub-domain-for-webserver-here.loca.lt/callback`) tanto no arquivo `bot/config.yaml`, campo **spotify[url][redirectURL]**, quanto nas configuração do _dashboard_ de sua aplicação no Spotify (cliquem em _edit settings_ e adicione essa URL no campo _redirect URIs_).
+- Verificando que os subdomínios escolhidos não estão sendo usados e conseguindo as URLs alocadas para você, registre a URL que será alocada pelo serviço **localtunnel_web** do _docker-compose_, com um '/callback' no fim (algo como `https://your-sub-domain-for-webserver-here.loca.lt/callback`) tanto no arquivo `bot/config.yaml`, campo **spotify[url][redirectURL]**, quanto nas configuração do _dashboard_ de sua aplicação no Spotify (cliquem em _edit settings_ e adicione essa URL no campo _redirect URIs_).
 
-- Também será necessário registrar a URL associada ao serviço **localtunnel_web** do _docker-compose_ (algo como `https://your-sub-domain-for-bot-here.loca.lt/`) no arquivo `bot/config.yaml`, campo **spotify[url][redirectURL]**.
+- Também será necessário registrar a URL associada ao serviço **localtunnel_bot** do _docker-compose_ (algo como `https://your-sub-domain-for-bot-here.loca.lt/`) no arquivo `bot/config.yaml`, campo **spotify[telegram][webhookURL]**.
 
-_**Nota importante**_: O funcionamento dos serviços do _localtunnel_ não é perfeito. Caso os subdomínios escolhidos sejam fáceis, outros usuários poderão ocupá-los. Um _bug_ recente que pode acontecer é você não poder mais acessar um subdomínio que teoricamente ninguém está utilizando fique indisponível caso haja uma interrupção abrupta na sua conexão com a internet (caso ela caia ou você suspenda seu computador). Nesses casos, as operações desse passo deverão ser refeitas. Outra possibilidade é do serviço parar por erro interno dos servidores que hospedam o _localtunnel_. Nesses casos, os _containers_ responsáveis pela comunicação com o _localtunnel_ em teoria irão reiniciar, o que pode resolver o problema (caso contrário, uma possível solução seria reiniciar o processo do _docker-compose_).
+_**Nota importante**_: O funcionamento dos serviços do _localtunnel_ não é perfeito. Caso os subdomínios escolhidos sejam fáceis, outros usuários poderão ocupá-los. Um _bug_ recente que pode acontecer é você não poder mais acessar um subdomínio que teoricamente ninguém está utilizando caso haja uma interrupção abrupta na sua conexão com a internet (caso ela caia ou você suspenda seu computador). Nesses casos, as operações desse passo deverão ser refeitas. Outra possibilidade é do serviço parar por erro interno dos servidores que hospedam o _localtunnel_. Nesses casos, os _containers_ responsáveis pela comunicação com o _localtunnel_ em teoria irão reiniciar, o que pode resolver o problema (caso contrário, uma possível solução seria reiniciar o processo do _docker-compose_).
 
 
 ### 4º passo: Iniciando bot
@@ -65,9 +65,7 @@ docker-compose up --build
 
 Isso irá criar as imagens do servidor web e do bot e utilizará as imagens do Redis, que servirá como banco de dados do bot, e os serviços do _localtunnel_, que serão conectados ao seus respectivos serviços.
 
-A versão atual não está projetada para ser utilizada com domínios próprios, sendo necessário a utilização do _localtunnel_.
-
-_**Nota importante**_: Caso o bot não esteja conseguindo se comunicar com o Telegram (quando você manda mensagens ou comandos que supostamente deveriam ter algum retorno do Bot), tente comentar a linha 178 do arquivo `bot/bot.py`. Em testes anteriores, o bot funcionava com a linha comentada, mas ao fazer um teste em uma versão "pura" do código (clonando o repositório do Github), rodar essa linha de código permitiu a conexão do bot com o Telegram.
+_**Nota importante**_: **Caso** o bot não esteja conseguindo se comunicar com o Telegram (quando você manda mensagens ou comandos que supostamente deveriam ter algum retorno do Bot), tente comentar a linha 178 do arquivo `bot/bot.py`. Em testes anteriores, o bot funcionava com a linha comentada, mas ao fazer um teste em uma versão "pura" do código (clonando o repositório do Github), rodar essa linha de código permitiu a conexão do bot com o Telegram.
 
 ## Utilizando o Bot
 
