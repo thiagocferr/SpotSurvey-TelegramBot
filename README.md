@@ -1,6 +1,6 @@
 # SpotSurvey-TelegramBot
 
-[**Link do repositório**](https://github.com/thiagocferr/SpotSurvey-TelegramBot) ([https://github.com/thiagocferr/SpotSurvey-TelegramBot]())
+[**Link do repositório**](https://github.com/thiagocferr/SpotSurvey-TelegramBot) <https://github.com/thiagocferr/SpotSurvey-TelegramBot>
 
 SpotSurveyBot é um bot de Telegram que permite que, a partir de informações coletadas durante a interação com o usuário em um cliente do Telegram, se preencha uma playlist no Spotify com músicas recomendadas baseadas nesses dados coletados. Ele foi desenvolvido como projeto final da disciplina _MAC0546(2020) - Fundamentos da Internet das Coisas_.
 
@@ -20,7 +20,7 @@ Antes mais nada, o código do bot utiliza um arquivo que guarda variáveis de am
 
 ### 1º passo: Registro de um bot no Telegram
 
-Primeiramente, você deve possuir uma conta no [Telegram](https://web.telegram.org) e iniciar um conversa com [BotFather](https://telegram.me/BotFather), um perfil que serve para registro de bots no Telegram. Você deverá então criar um bot. Para mais informações sobre como criar um bot usando o BotFather, acesse [https://core.telegram.org/bots#6-botfather]().
+Primeiramente, você deve possuir uma conta no [Telegram](https://web.telegram.org) e iniciar um conversa com [BotFather](https://telegram.me/BotFather), um perfil que serve para registro de bots no Telegram. Você deverá então criar um bot. Para mais informações sobre como criar um bot usando o BotFather, acesse <https://core.telegram.org/bots#6-botfather>.
 
 Alguns detalhes sobre como a criação do bot deve ser feita:
 
@@ -32,7 +32,7 @@ Alguns detalhes sobre como a criação do bot deve ser feita:
 
 - O SpotSurveyBot só funciona em chats privados (ou seja, não pode ser adicionado em grupos). Se quiser garantir isso, use o comando '**/setjoingroups**' do bot para o estado **disabled**.
 
-Após o registro, você receberá o _token_ de autorização de uso do bot que você acabou de criar. Copie o _token_ e o associe à variável **TELEGRAM_TOKEN** no arquivo `.env` (que você deverá ter obtido ao renomear o arquivo `.env_model`). Também preencha o campo **telegramBotLink** do arquivo `webserver/config.yaml` com a URL do bot criado (por exemplo, 'https://telegram.me/SpotSurveyBot', substituindo 'SpotSurveyBot' pelo _Username_ dado ao bot)
+Após o registro, você receberá o _token_ de autorização de uso do bot que você acabou de criar. Copie o _token_ e o associe à variável **TELEGRAM_TOKEN** no arquivo `.env` (que você deverá ter obtido ao renomear o arquivo `.env_model`). Também preencha o campo **telegramBotLink** do arquivo `webserver/config.yaml` com a URL do bot criado (por exemplo, '<https://telegram.me/SpotSurveyBot>', substituindo 'SpotSurveyBot' pelo _Username_ dado ao bot)
 
 ### 2º passo: Registro de aplicação no Spotify
 
@@ -69,7 +69,7 @@ A versão atual não está projetada para ser utilizada com domínios próprios,
 
 ## Utilizando o Bot
 
-Como mencionado no passo 1 do _Setup_ do bot, o bot é utilizável em clientes de Telegram acessando o _link_ associado que depende de seu _Username_ (se ele for 'SpotSurveyBot', acessando o _link_ 'https://telegram.me/SpotSurveyBot' irá te direcionar para o bot). Acessando o _link_ e entrando no _chat_ associado ao bot, o usuário irá ver um botão escrito 'Começar' na parte de baixo. Ao clicar nele, o usuário inicia a conversa com o bot (esse é um comportamento padrão para a maioria dos bots de Telegram).
+Como mencionado no passo 1 do _Setup_ do bot, o bot é utilizável em clientes de Telegram acessando o _link_ associado que depende de seu _Username_ (se ele for 'SpotSurveyBot', acessando o _link_ '<https://telegram.me/SpotSurveyBot>' irá te direcionar para o bot). Acessando o _link_ e entrando no _chat_ associado ao bot, o usuário irá ver um botão escrito 'Começar' na parte de baixo. Ao clicar nele, o usuário inicia a conversa com o bot (esse é um comportamento padrão para a maioria dos bots de Telegram).
 
 É interessante destacar que o bot funciona exclusivamente em _chat_ privado com os usuários, sendo que todas as informações armazenadas sobre um usuário do Telegram não estão associadas ao usuário em si, mas sim ao _chat_ que o usuário mantém com o bot.
 

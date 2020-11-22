@@ -65,7 +65,7 @@ Essa pasta contém os arquivos necessários para rodar um servidor web usando Fl
 
 - `requirements.txt`: Bibliotecas externas necessárias para a imagem do Docker
 
-- `config.yaml`: Arquivo de configuração do webserver. Para o funcionamento do comando `/login` (sem o qual novos usuário não poderão interagir com o bot), será necessário definir o endereço (URL) do bot no Telegram. Por exemplo, se seu bot tem o _username_ "SpotSurveyTestBot", o campo seri algo como "https://telegram.me/SpotSurveyTestBot".
+- `config.yaml`: Arquivo de configuração do webserver. Para o funcionamento do comando `/login` (sem o qual novos usuário não poderão interagir com o bot), será necessário definir o endereço (URL) do bot no Telegram. Por exemplo, se seu bot tem o _username_ "SpotSurveyTestBot", o campo seri algo como "<https://telegram.me/SpotSurveyTestBot>".
 
 - `webserver.py`: Inicia um servidor usando Flask e faz a operação citada no começo dessa subseção.
 
