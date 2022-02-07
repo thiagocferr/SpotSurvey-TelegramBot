@@ -1,22 +1,28 @@
 # SpotSurvey-TelegramBot
 
-[**Link do repositório**](https://github.com/thiagocferr/SpotSurvey-TelegramBot) <https://github.com/thiagocferr/SpotSurvey-TelegramBot>
+**SpotSurveyBot** é um bot de Telegram que permite a geração de _playlists_ no Spotify com música recomendadas a partir de preferências do usuário. Essas preferências são escolhidas através de menus interativos no chat do Telegram, onde usuários podem escolher entre 5 itens dos _top_ artistas e/ou músicas (associados às suas contas do Spotify) como _seeds_ para o _endpoint_ do Spotify que permite gerar uma coleção de músicas recomendadas. Através dessas preferências (associadas à conta do Telegram), utiliza-se a API do Spotify para gerar a lista de recomendações
 
-SpotSurveyBot é um bot de Telegram que permite que, a partir de informações coletadas durante a interação com o usuário em um cliente do Telegram, se preencha uma playlist no Spotify com músicas recomendadas baseadas nesses dados coletados. Ele foi desenvolvido como projeto final da disciplina _MAC0546(2020) - Fundamentos da Internet das Coisas_.
+**O bot foi desenvolvido como projeto final da disciplina _MAC0546(2020) - Fundamentos da Internet das Coisas_.**
 
-Em resumo, há comandos que iniciarão uma interação com o usuário onde ele selecionará _seeds_ (_top_ artistas ou músicas do usuário) e/ou parâmetros subjetivos de preferências musicais, que serão utilizadas para o preenchimento de uma playlist do Spotify associada à conta do usuário do bot com músicas recomendadas para ele. A recomendação das músicas não é feita pelo bot, mas sim pelo próprio Spotify.
+**Atualmente, ele não está em execução, visto complicações adicionais em manter um _app_ que coleta _tokens_ de acesso à conta do Spotify de terceiros**
 
-De modo geral, a utilização do bot funciona da seguinte forma: o usuário deve realizar o processo de autenticação com o Spotify (através do comando `/login`), selecionar _seeds_ que gostaria de usar na recomendação (com comando `/setup_seed`), opcionalmente selecionar atributos que indicarão a preferência do usuário (caso não sejam definidas, as músicas recomendadas serão músicas similares às _seeds_ selecionadas), quando quiser gerar uma nova playlist (excluindo as músicas anteriores da playlist criada pelo bot e colocando músicas recomendadas), utilizar o comando `/generate_playlist` e, se quiser se desassociar do bot, excluindo informações registradas, o acesso a sua conta pelo bot e, opcionalmente, a última versão da playlist gerada pelo bot, utilizar o comando `/logout`.
+De modo geral, a utilização do bot funciona da seguinte forma:
 
-Apesar de muitos casos onde a interação com o usuário poderia gerar erros terem sido tratados, é possível que existam alguns tipos de interações que não foram planejadas. Para maior confiança no funcionamento geral do bot, recomendo seguir o modo como as interações foram pensadas, o que está descrito na seção '**Utilizando o Bot**'
+- Realizar o processo de autenticação com o Spotify (através do comando `/login`),
+- selecionar _seeds_ que gostaria de usar na recomendação (com comando `/setup_seed`)
+- (Opcional) selecionar filtros (caso não sejam definidas, as músicas recomendadas serão músicas similares às _seeds_ selecionadas)
+- Quando quiser gerar uma nova playlist (excluindo as músicas anteriores da playlist criada pelo bot e colocando músicas recomendadas), utilizar o comando `/generate_playlist`
+- Se quiser se desassociar do bot, excluindo informações registradas, o acesso a sua conta pelo bot e, opcionalmente, a última versão da playlist gerada pelo bot, utilizar o comando `/logout`.
 
-_Nota_: No estado atual do projeto, a sua utilização pública não é recomendada, visto a falta de testes suficientes para garantir a estabilidade do programa sobre diversas situações (por exemplo, não foram feitos muitos testes sobre seu funcionamento com a utilização simultânea por vários usuários, apesar do desenvolvimento em geral ter considerado isso de forma superficial). Além disso, o modo como está estruturado iria requerer algumas mudanças para permitir que o programa parasse de depender do serviço do _localtunnel_ para utilizar um servidor com domínio registrado e SSL para proteção dos dados enviados (visto que há troca de _tokens_ de acesso do Spotify durante as operações do bot).
+**_Obs1:_** Apesar de muitos casos onde a interação com o usuário poderia gerar erros terem sido tratados, **é possível que existam alguns tipos de interações que não foram planejadas.** Para maior confiança no funcionamento geral do bot, recomendo seguir o modo como as interações foram pensadas, o que está descrito na seção "[Utilizando o Bot](#utilizando-o-bot)"
+
+**_Obs2:_** No estado atual do projeto, a sua utilização pública não é recomendada, visto a falta de testes suficientes para garantir a estabilidade do programa sobre diversas situações (por exemplo, não foram feitos muitos testes sobre seu funcionamento com a utilização simultânea por vários usuários, apesar do desenvolvimento em geral ter considerado isso de forma superficial). Além disso, o modo como está estruturado iria necessitar de algumas mudanças para permitir que o programa parasse de depender do serviço do [_localtunnel_](https://github.com/localtunnel/localtunnel) para utilizar um servidor com domínio registrado e SSL para proteção dos dados enviados (visto que há troca de _tokens_ de acesso do Spotify durante as operações do bot).
 
 ## _Setup_ do bot (para reprodução)
 
 O SpotSurveyBot é executado como um conjunto de _containers_ do Docker, mas antes de executá-los, alguns passos adicionais são necessários.
 
-Antes mais nada, o código do bot utiliza um arquivo que guarda variáveis de ambiente chamado `.env`. Como ele guarda os tokens de acesso às APIs usadas (Telegram e Spotify), ele não está presente nesse repositório. No seu lugar, existe um arquivo `.env_model` que possui os campos que devem ser definidos para execução do bot. Quando for executar, renomeie o arquivo de `.env_model` para `.env` e preencha os campos vazios com as informações relevantes (o que será mencionado mais adiante).
+Antes de mais nada, o código do bot utiliza um arquivo que guarda variáveis de ambiente chamado `.env`. Como ele guarda os tokens de acesso às APIs usadas (Telegram e Spotify), ele não está presente nesse repositório. No seu lugar, existe um arquivo `.env_model` que possui os campos que devem ser definidos para execução do bot. Quando for executar, renomeie o arquivo de `.env_model` para `.env` e preencha os campos vazios com as informações relevantes (o que será mencionado mais adiante).
 
 ### 1º passo: Registro de um bot no Telegram
 
@@ -26,7 +32,7 @@ Alguns detalhes sobre a criação do bot:
 
 - O _name_ do bot pode pode ser o que você quiser
 
-- O _Username_ do bot, além de seguir a restrição de terminar em 'bot' (como mencionado na criação de bots), deve ser único. Não poderá ser nomeado 'SpotSurveyBot' ou 'SpotSurveyTestBot', visto que já tenho ambos os nomes registrados a minha conta.
+- O _Username_ do bot, além de seguir a restrição de terminar em 'bot' (como mencionado na criação de bots), deve ser único. Não poderá ser nomeado 'SpotSurveyBot' ou 'SpotSurveyTestBot', visto que já tenho ambos os nomes registrados à minha conta.
 
 - Como mencionado no tutorial de criação de bots, você pode adicionar quais comandos existirão no bot (com o comando do BotFather '**/setcommands**'). Isso é útil pois facilita o uso dos comandos do bot ao permitir _autocomplete_. A lista de comandos que esse bot aceita está descrita na subseção **Lista de comandos**, seção **Utilizando o Bot**.
 
@@ -42,7 +48,7 @@ Após se logar com sua conta Spotify, crie uma aplicação. Após isso, você ir
 
 ### 3º passo: Configurando servidores e _tunneling_
 
-Como o SpotSurveyBot é basicamente um servidor que recebe atualizações do Telegram quando há uma interação com o usuário, até poderíamos criar um servidor local. Porém, isso não foi possível com esse bot por dois fatores: pessoas que não estão conectadas na rede local não conseguiriam interagir com o bot e, da forma como o [processo de autenticação da API do Spotify](https://developer.spotify.com/documentation/general/guides/authorization-guide/#authorization-code-flow) funciona, após o usuário permitir a aplicação se conectar com o Spotify, ocorre um redirecionamento para uma URL. Como a intenção era que o bot pudesse ser acessado de qualquer lugar, essa URL teria que ser um domínio registrado. Como pessoalmente não possuo nenhum domínio registrado ou servidor externo que possa rodar o bot, resolvi usar um serviço de tunelamento de um domínio específico para um servidor local. Mais especificamente, usei o [localtunnel](https://github.com/localtunnel/localtunnel).
+Como o SpotSurveyBot é basicamente um servidor que recebe atualizações do Telegram quando há uma interação com o usuário, até poderíamos criar um servidor local. Porém, isso não foi possível com esse bot por dois fatores: pessoas que não estão conectadas na rede local não conseguiriam interagir com o bot e, da forma como o [processo de autenticação da API do Spotify](https://developer.spotify.com/documentation/general/guides/authorization-guide/#authorization-code-flow) funciona, após o usuário permitir a aplicação se conectar com o Spotify, ocorre um redirecionamento para uma URL. Como a intenção era que o bot pudesse ser acessado de qualquer lugar, essa URL teria que ser um domínio registrado. Como pessoalmente não possuo nenhum domínio registrado no qual poderia utiliza para executar o _bot_, resolvi usar um serviço de tunelamento de um domínio específico para um servidor local. Mais especificamente, usei o [localtunnel](https://github.com/localtunnel/localtunnel).
 
 Da forma como o projeto está configurado, há dois serviços (_docker containers_) que rodam instâncias do _localtunnel_ sobre dois subdomínios diferentes: o primeiro redireciona para a porta 5000 e conecta à internet (sob um domínio fixo) um servidor web local criado com Flask. O segundo redireciona para a porta 5001 e permite o estabelecimento de um _Webhook_ do Telegram, permitindo acesso às atualizações vindas do Telegram. Você deve então:
 
@@ -52,7 +58,7 @@ Da forma como o projeto está configurado, há dois serviços (_docker container
 
 - Também será necessário registrar a URL associada ao serviço **localtunnel_bot** do _docker-compose_ (algo como `https://your-sub-domain-for-bot-here.loca.lt/`) no arquivo `bot/config.yaml`, campo **spotify[telegram][webhookURL]**.
 
-_**Nota importante**_: O funcionamento dos serviços do _localtunnel_ não é perfeito. Caso os subdomínios escolhidos sejam fáceis, outros usuários poderão ocupá-los. Um _bug_ recente que pode acontecer é você não poder mais acessar um subdomínio que teoricamente ninguém está utilizando caso haja uma interrupção abrupta na sua conexão com a internet (caso ela caia ou você suspenda seu computador). Nesses casos, as operações desse passo deverão ser refeitas. Outra possibilidade é do serviço parar por erro interno dos servidores que hospedam o _localtunnel_. Nesses casos, os _containers_ responsáveis pela comunicação com o _localtunnel_ em teoria irão reiniciar, o que pode resolver o problema (caso contrário, uma possível solução seria reiniciar o processo do _docker-compose_).
+_**Nota importante**_: O funcionamento dos serviços do _localtunnel_ não é perfeito. Caso os subdomínios escolhidos sejam fáceis, outros usuários poderão ocupá-los. Um possível _bug_ é você não poder mais acessar um subdomínio que teoricamente ninguém está utilizando caso haja uma interrupção abrupta na sua conexão com a internet (caso ela caia ou você suspenda seu computador). Nesses casos, as operações desse passo deverão ser refeitas. Outra possibilidade é do serviço parar por erro interno dos servidores que hospedam o _localtunnel_. Nesses casos, os _containers_ responsáveis pela comunicação com o _localtunnel_ em teoria irão reiniciar, o que pode resolver o problema (caso contrário, uma possível solução seria reiniciar o processo do _docker-compose_).
 
 
 ### 4º passo: Iniciando bot
@@ -69,7 +75,7 @@ _**Nota importante**_: **Caso** o bot não esteja conseguindo se comunicar com o
 
 ## Utilizando o Bot
 
-Como mencionado no passo 1 do _Setup_ do bot, o bot é utilizável em clientes de Telegram acessando o _link_ associado que depende de seu _Username_ (se ele for 'SpotSurveyBot', acessando o _link_ '<https://telegram.me/SpotSurveyBot>' irá te direcionar para o bot). Acessando o _link_ e entrando no _chat_ associado ao bot, o usuário irá ver um botão escrito 'Começar' na parte de baixo. Ao clicar nele, o usuário inicia a conversa com o bot (esse é um comportamento padrão para a maioria dos bots de Telegram).
+O bot é utilizável em clientes de Telegram acessando o _link_ associado que depende de seu _Username_ (se ele for 'SpotSurveyBot', acessando o _link_ '<https://telegram.me/SpotSurveyBot>' irá te direcionar para o bot). Acessando o _link_ e entrando no _chat_ associado ao bot, o usuário irá ver um botão escrito 'Começar' na parte de baixo. Ao clicar nele, o usuário inicia a conversa com o bot (esse é um comportamento padrão para a maioria dos bots de Telegram).
 
 É interessante destacar que o bot funciona exclusivamente em _chat_ privado com os usuários, sendo que todas as informações armazenadas sobre um usuário do Telegram não estão associadas ao usuário em si, mas sim ao _chat_ que o usuário mantém com o bot.
 
